@@ -61,13 +61,21 @@ python main.py
 ```
 
 #### Start evaluation.
- - After training, if you want to test the model, You need to put the image in the specified folder.
-   -  You can set the path to your test image folder via `config.VALID.eval_img_path` in `config.py`.
-   -  You can set the name of your test image via `config.VALID.eval_img_name` in `config.py`.(Default; "1.png")
+ - After training, if you want to test the model, You need to put images in the specified folder.
+   -  You can set the path to your test images folder via `config.VALID.eval_img_path` in `config.py`.
   
 
 ```bash
 python main.py --mode=evaluate 
+```
+
+#### Start enlargement.
+ - After training, if you want to enlarge your images, You need to put images in the specified folder.
+   -  You can set the path to your images folder via `config.VALID.enlargement_lr_img_path` in `config.py`.
+  
+
+```bash
+python main.py --mode=enlarge 
 ```
 
 ### License
