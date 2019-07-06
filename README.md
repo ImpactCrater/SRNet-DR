@@ -40,7 +40,22 @@ python3.6 -m pip install -U --force-reinstall pillow-simd
 ```
 
 ### My Results
-Under construction.
+
+<div align="center">
+	<img src="img/SRNet-D_Comparison_1_label_1.png"/>
+</div>
+</a>
+
+<div align="center">
+	<img src="img/SRNet-D_Comparison_2_label_1.png"/>
+</div>
+</a>
+
+<div align="center">
+	<img src="img/SRNet-D_Comparison_3_label_1.png"/>
+</div>
+</a>
+Original image is from iStock.
 
 ### Prepare Data
 
