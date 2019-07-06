@@ -198,7 +198,7 @@ def evaluate():
      out_bicu = (valid_lr_img + 1) * 127.5 # rescale to [0, 255]
      out_bicu = np.array(Image.fromarray(np.uint8(out_bicu)).resize((size[1] * 4, size[0] * 4), Image.BICUBIC))
      out_bicu_uint8 = out_bicu.astype('uint8')
-     save_img_fn(out_bicu_uint8, save_file_format, save_dir + '/valid_bicubic_%d' % eval_img_name_list[idx])
+     save_img_fn(out_bicu_uint8, save_file_format, save_dir + '/' + eval_img_name_list[idx])
 
 
 def enlarge():
@@ -233,7 +233,7 @@ def enlarge():
      print("[*] save images")
      out = (out + 1) * 127.5 # rescale to [0, 255]
      out_uint8 = out.astype('uint8')
-     save_img_fn(out_uint8[0], save_file_format, save_dir + '/enlarged_%d' % enlarge_img_name_list[idx])
+     save_img_fn(out_uint8[0], save_file_format, save_dir + '/' + enlarge_img_name_list[idx])
 
 
 if __name__ == '__main__':
