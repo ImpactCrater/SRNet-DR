@@ -65,7 +65,10 @@ Original image is from iStock.
    -  Subdirectories are searched recursively.
 
 ### You can use pre-trained model and re-train it.
- 1. Under construction.
+ 1. Download the [ZIP file from the file storage(Yahoo! JAPAN)](https://yahoo.jp/box/ULWJdj).
+ 1. Unzip it.
+ 1. Move 2 files 'ae.npz', 'g.npz' into './SRNet-D/checkpoint/'.
+ 1. Run.
 
 ### Run
 
