@@ -18,9 +18,12 @@ config.samples_path = config.home_path + '/SRNet-D/samples/'
 # save file format
 config.save_file_format = '.png'
 
+# input file format
+config.input_img_name_regx = '.*\.(bmp|png|webp|jpg)'
+
 # Adam
 config.TRAIN.sample_batch_size = 25
-config.TRAIN.batch_size = 9
+config.TRAIN.batch_size = 4
 config.TRAIN.learning_rate = 1e-4
 
 # training
@@ -33,10 +36,14 @@ config.TRAIN.noise_level = 40
 # train set location
 config.TRAIN.hr_img_path = config.home_path + '/SRNet-D/HRImage_Training/'
 
-# test set location
+# validation set location
 config.VALID.hr_img_path = config.home_path + '/SRNet-D/HRImage_Validation/'
+
+# test set location
 config.VALID.eval_img_path = config.home_path + '/SRNet-D/LRImage_Evaluation/'
-config.VALID.eval_img_name_regx = '/1\.(bmp|png|webp|jpg)'
+
+# enlargement set location
+config.VALID.enlargement_lr_img_path = config.home_path + '/SRNet-D/LRImage_Enlargement/'
 
 def log_config(filename, cfg):
     with open(filename, 'w') as f:
