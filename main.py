@@ -21,19 +21,25 @@ import glob
 ###====================== HYPER-PARAMETERS ===========================###
 ## batch size
 sample_batch_size = config.TRAIN.sample_batch_size
+
+## file format
+save_file_format = config.save_file_format
+input_img_name_regx = config.input_img_name_regx
+
 ## Adam
 batch_size = config.TRAIN.batch_size
 learning_rate = config.TRAIN.learning_rate
+
 ## training
 n_epoch = config.TRAIN.n_epoch
+
 ## paths
 samples_path = config.samples_path
 checkpoint_path = config.checkpoint_path
 valid_hr_img_path = config.VALID.hr_img_path
 train_hr_img_path = config.TRAIN.hr_img_path
-eval_img_name_regx = config.VALID.eval_img_name_regx
 eval_img_path = config.VALID.eval_img_path
-save_file_format = config.save_file_format
+enlargement_lr_img_path = config.VALID.enlargement_lr_img_path
 
 ni = int(np.sqrt(sample_batch_size))
 
@@ -61,7 +67,7 @@ def train():
     tl.files.exists_or_mkdir(checkpoint_path)
 
     ###====================== PRE-LOAD DATA ===========================###
-    valid_hr_img_list = sorted(tl.files.load_file_list(path=valid_hr_img_path, regx='.*\.(bmp|png|webp|jpg)', printable=False))
+    valid_hr_img_list = sorted(tl.files.load_file_list(path=valid_hr_img_path, regx=input_img_name_regx, printable=False))
 
     ###========================== DEFINE MODEL ============================###
     ## train inference
@@ -112,7 +118,7 @@ def train():
         epoch_time = time.time()
         total_g_loss, total_mae_loss, total_edge_loss, step = 0, 0, 0, 0
 
-        train_hr_img_list = load_deep_file_list(path=train_hr_img_path, regx='.*\.(bmp|png|webp|jpg)', recursive=True, printable=False)
+        train_hr_img_list = load_deep_file_list(path=train_hr_img_path, regx=input_img_name_regx, recursive=True, printable=False)
         random.shuffle(train_hr_img_list)
 
         list_length = len(train_hr_img_list)
@@ -124,6 +130,7 @@ def train():
         list_length = len(train_hr_img_list)
         print("Length of list: %d" % (list_length))
         n_step = list_length / batch_size
+        print("Number of steps: %d" % (n_step))
 
         for idx in range(0, list_length, batch_size):
             step_time = time.time()
@@ -135,8 +142,8 @@ def train():
 
             ## update G
             errM, errE, errG, _ = sess.run([mae_loss, edge_loss, g_loss, g_optim], {t_image: b_imgs_96, t_target_image: b_imgs_384})
-            print("Epoch[%2d/%2d] Step[%4d/%4d] time: %4.2fs g_loss: %.8f mae_loss: %.8f edge_loss: %.8f" %
-                  (epoch, n_epoch, step, n_step,  time.time() - step_time, errG, errM, errE))
+            print("Epoch: %2d Step: %4d time: %4.2fs g_loss: %.8f mae_loss: %.8f edge_loss: %.8f" %
+                  (epoch, step,  time.time() - step_time, errG, errM, errE))
             total_g_loss += errG
             total_mae_loss += errM
             total_edge_loss += errE
@@ -161,12 +168,6 @@ def evaluate():
     tl.files.exists_or_mkdir(save_dir)
 
     ###========================== DEFINE MODEL ============================###
-    eval_img_name_list = load_deep_file_list(path=eval_img_path, regx=eval_img_name_regx, recursive=False, printable=False)
-    print(eval_img_name_list)
-    valid_lr_img = get_imgs_fn(eval_img_name_list[0], eval_img_path) # if you want to test your own image
-    valid_lr_img = rescale_m1p1(valid_lr_img)
-
-    size = valid_lr_img.shape
     t_image = tf.compat.v1.placeholder('float32', [1, None, None, 3], name='input_image')
 
     net_g = Generator(t_image, is_train=False, reuse=False)
@@ -177,27 +178,69 @@ def evaluate():
     tl.files.load_and_assign_npz(sess=sess, name=checkpoint_path + 'g.npz', network=net_g)
 
     ###======================= EVALUATION =============================###
-    start_time = time.time()
-    out = sess.run(net_g.outputs, {t_image: [valid_lr_img]})
-    print("took: %4.4fs" % (time.time() - start_time))
+    eval_img_name_list = load_deep_file_list(path=eval_img_path, regx=input_img_name_regx, recursive=True, printable=False)
+    print(eval_img_name_list)
+    list_length = len(eval_img_name_list)
+    for idx in range(0, list_length):
+     valid_lr_img = get_imgs_fn(eval_img_name_list[idx], eval_img_path) # if you want to test your own image
+     valid_lr_img = rescale_m1p1(valid_lr_img)
+     size = valid_lr_img.shape
 
-    print("LR size: %s /  generated HR size: %s" % (size, out.shape))
-    print("[*] save images")
-    out = (out + 1) * 127.5 # rescale to [0, 255]
-    out_uint8 = out.astype('uint8')
-    save_img_fn(out_uint8[0], save_file_format, save_dir + '/valid_gen')
+     start_time = time.time()
+     out = sess.run(net_g.outputs, {t_image: [valid_lr_img]})
+     print("took: %4.4fs" % (time.time() - start_time))
+     print("LR size: %s /  generated HR size: %s" % (size, out.shape))
+     print("[*] save images")
+     out = (out + 1) * 127.5 # rescale to [0, 255]
+     out_uint8 = out.astype('uint8')
+     save_img_fn(out_uint8[0], save_file_format, save_dir + '/valid_gen_%d' % idx)
 
-    out_bicu = (valid_lr_img + 1) * 127.5 # rescale to [0, 255]
-    out_bicu = np.array(Image.fromarray(np.uint8(out_bicu)).resize((size[1] * 4, size[0] * 4), Image.BICUBIC))
-    out_bicu_uint8 = out_bicu.astype('uint8')
-    save_img_fn(out_bicu_uint8, save_file_format, save_dir + '/valid_bicubic')
+     out_bicu = (valid_lr_img + 1) * 127.5 # rescale to [0, 255]
+     out_bicu = np.array(Image.fromarray(np.uint8(out_bicu)).resize((size[1] * 4, size[0] * 4), Image.BICUBIC))
+     out_bicu_uint8 = out_bicu.astype('uint8')
+     save_img_fn(out_bicu_uint8, save_file_format, save_dir + '/valid_bicubic_%d' % eval_img_name_list[idx])
+
+
+def enlarge():
+    ## create folders to save result images
+    save_dir = samples_path + "enlarged"
+    tl.files.exists_or_mkdir(save_dir)
+
+    ###========================== DEFINE MODEL ============================###
+    t_image = tf.compat.v1.placeholder('float32', [1, None, None, 3], name='input_image')
+
+    net_g = Generator(t_image, is_train=False, reuse=False)
+
+    ###========================== RESTORE G =============================###
+    sess = tf.Session(config=tf.ConfigProto(allow_soft_placement=True, log_device_placement=False))
+    sess.run(tf.variables_initializer(tf.global_variables()))
+    tl.files.load_and_assign_npz(sess=sess, name=checkpoint_path + 'g.npz', network=net_g)
+
+    ###======================= EVALUATION =============================###
+    enlarge_img_name_list = load_deep_file_list(path=enlargement_lr_img_path, regx=input_img_name_regx, recursive=True, printable=False)
+    print(enlarge_img_name_list)
+    list_length = len(enlarge_img_name_list)
+    print("Number of images: %d" % (list_length))
+    for idx in range(0, list_length):
+     valid_lr_img = get_imgs_fn(enlarge_img_name_list[idx], enlargement_lr_img_path)
+     valid_lr_img = rescale_m1p1(valid_lr_img)
+     size = valid_lr_img.shape
+
+     start_time = time.time()
+     out = sess.run(net_g.outputs, {t_image: [valid_lr_img]})
+     print("took: %4.4fs" % (time.time() - start_time))
+     print("LR size: %s /  generated HR size: %s" % (size, out.shape))
+     print("[*] save images")
+     out = (out + 1) * 127.5 # rescale to [0, 255]
+     out_uint8 = out.astype('uint8')
+     save_img_fn(out_uint8[0], save_file_format, save_dir + '/enlarged_%d' % enlarge_img_name_list[idx])
 
 
 if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser()
 
-    parser.add_argument('--mode', type=str, default='train', help='train, evaluate')
+    parser.add_argument('--mode', type=str, default='train', help='train, evaluate, enlarge')
 
     args = parser.parse_args()
 
@@ -207,5 +250,7 @@ if __name__ == '__main__':
         train()
     elif tl.global_flag['mode'] == 'evaluate':
         evaluate()
+    elif tl.global_flag['mode'] == 'enlarge':
+        enlarge()
     else:
         raise Exception("Unknow --mode")
