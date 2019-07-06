@@ -42,7 +42,7 @@ python3.6 -m pip install -U --force-reinstall pillow-simd
 ### My Results
 
 <div align="center">
-	<img src="img/SRNet-D_Comparison_1_label_1.png"/>
+	<img src="img/SRNet_D_Comparison_1_label_1.png"/>
 </div>
 </a>
 
