@@ -179,8 +179,8 @@ def evaluate():
 
     ###======================= EVALUATION =============================###
     eval_img_name_list = load_deep_file_list(path=eval_img_path, regx=input_img_name_regx, recursive=True, printable=False)
-    print(eval_img_name_list)
     list_length = len(eval_img_name_list)
+    print("Number of images: %d" % (list_length))
     for idx in range(0, list_length):
      valid_lr_img = get_imgs_fn(eval_img_name_list[idx], eval_img_path) # if you want to test your own image
      valid_lr_img = rescale_m1p1(valid_lr_img)
@@ -218,7 +218,6 @@ def enlarge():
 
     ###======================= EVALUATION =============================###
     enlarge_img_name_list = load_deep_file_list(path=enlargement_lr_img_path, regx=input_img_name_regx, recursive=True, printable=False)
-    print(enlarge_img_name_list)
     list_length = len(enlarge_img_name_list)
     print("Number of images: %d" % (list_length))
     for idx in range(0, list_length):
