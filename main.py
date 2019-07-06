@@ -178,7 +178,7 @@ def evaluate():
     tl.files.load_and_assign_npz(sess=sess, name=checkpoint_path + 'g.npz', network=net_g)
 
     ###======================= EVALUATION =============================###
-    eval_img_name_list = load_deep_file_list(path=eval_img_path, regx=input_img_name_regx, recursive=True, printable=False)
+    eval_img_name_list = sorted(load_deep_file_list(path=eval_img_path, regx=input_img_name_regx, recursive=True, printable=False))
     list_length = len(eval_img_name_list)
     print("Number of images: %d" % (list_length))
     for idx in range(0, list_length):
@@ -217,7 +217,7 @@ def enlarge():
     tl.files.load_and_assign_npz(sess=sess, name=checkpoint_path + 'g.npz', network=net_g)
 
     ###======================= EVALUATION =============================###
-    enlarge_img_name_list = load_deep_file_list(path=enlargement_lr_img_path, regx=input_img_name_regx, recursive=True, printable=False)
+    enlarge_img_name_list = sorted(load_deep_file_list(path=enlargement_lr_img_path, regx=input_img_name_regx, recursive=True, printable=False))
     list_length = len(enlarge_img_name_list)
     print("Number of images: %d" % (list_length))
     for idx in range(0, list_length):
