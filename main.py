@@ -85,10 +85,8 @@ def train():
 
     # ###========================== DEFINE TRAIN OPS ==========================###
 
-    # Loss
-    mae_loss = tf.reduce_mean(tf.map_fn(tf.abs, t_target_image - net_g.outputs))
-    edge_loss = tf.reduce_mean(tf.map_fn(tf.abs, tf.image.sobel_edges(t_target_image) - tf.image.sobel_edges(net_g.outputs)))
-    g_loss = mae_loss + edge_loss
+    # Loss (sqrt(1+difference^2))-1
+    g_loss = tf.reduce_mean(tf.map_fn(tf.math.sqrt, 1 + tf.pow(40*(t_target_image - net_g.outputs), 2))) - 1
 
     with tf.variable_scope('learning_rate'):
         learning_rate_var = tf.Variable(learning_rate, trainable=False)
@@ -100,7 +98,7 @@ def train():
 
     ###========================== RESTORE MODEL =============================###
     sess = tf.Session(config=tf.ConfigProto(allow_soft_placement=True, log_device_placement=False))
-    sess.run(tf.variables_initializer(tf.global_variables()))
+    sess.run(tf.variables_initializer(tf.compat.v1.global_variables()))
     tl.files.load_and_assign_npz(sess=sess, name=checkpoint_path + 'g.npz', network=net_g)
 
     ###============================= TRAINING ===============================###
@@ -113,10 +111,10 @@ def train():
     save_images(sample_imgs_384, [ni, ni], save_file_format, save_dir_generated + '/_train_sample_384')
 
     ###========================= train =========================###
-    sess.run(tf.assign(learning_rate_var, learning_rate))
+    sess.run(tf.compat.v1.assign(learning_rate_var, learning_rate))
     for epoch in range(0, n_epoch + 1):
         epoch_time = time.time()
-        total_g_loss, total_mae_loss, total_edge_loss, step = 0, 0, 0, 0
+        total_g_loss, step = 0, 0
 
         train_hr_img_list = load_deep_file_list(path=train_hr_img_path, regx=input_img_name_regx, recursive=True, printable=False)
         random.shuffle(train_hr_img_list)
@@ -141,16 +139,14 @@ def train():
             b_imgs_384 = tl.prepro.threading_data(b_imgs_384, fn=rescale_m1p1)
 
             ## update G
-            errM, errE, errG, _ = sess.run([mae_loss, edge_loss, g_loss, g_optim], {t_image: b_imgs_96, t_target_image: b_imgs_384})
-            print("Epoch: %2d Step: %4d time: %4.2fs g_loss: %.8f mae_loss: %.8f edge_loss: %.8f" %
-                  (epoch, step,  time.time() - step_time, errG, errM, errE))
+            errG, _ = sess.run([g_loss, g_optim], {t_image: b_imgs_96, t_target_image: b_imgs_384})
+            print("Epoch: %2d Step: %4d time: %4.2fs g_loss: %.8f" %
+                  (epoch, step,  time.time() - step_time, errG))
             total_g_loss += errG
-            total_mae_loss += errM
-            total_edge_loss += errE
             step += 1
 
-        log = ("[*] Epoch[%2d/%2d] time: %4.2fs g_loss: %.8f mae_loss: %.8f edge_loss: %.8f" %
-            (epoch, n_epoch, time.time() - epoch_time, total_g_loss / n_step, total_mae_loss / n_step, total_edge_loss / n_step))
+        log = ("[*] Epoch[%2d/%2d] time: %4.2fs g_loss: %.8f" %
+            (epoch, n_epoch, time.time() - epoch_time, total_g_loss / n_step))
         print(log)
 
         ## quick evaluation on train set
@@ -164,7 +160,7 @@ def train():
 
 def evaluate():
     ## create folders to save result images
-    save_dir = samples_path + "evaluate"
+    save_dir = samples_path + "evaluated"
     tl.files.exists_or_mkdir(save_dir)
 
     ###========================== DEFINE MODEL ============================###
@@ -174,7 +170,7 @@ def evaluate():
 
     ###========================== RESTORE G =============================###
     sess = tf.Session(config=tf.ConfigProto(allow_soft_placement=True, log_device_placement=False))
-    sess.run(tf.variables_initializer(tf.global_variables()))
+    sess.run(tf.variables_initializer(tf.compat.v1.global_variables()))
     tl.files.load_and_assign_npz(sess=sess, name=checkpoint_path + 'g.npz', network=net_g)
 
     ###======================= EVALUATION =============================###
@@ -193,12 +189,12 @@ def evaluate():
      print("[*] save images")
      out = (out + 1) * 127.5 # rescale to [0, 255]
      out_uint8 = out.astype('uint8')
-     save_img_fn(out_uint8[0], save_file_format, save_dir + '/valid_gen_%d' % idx)
+     save_img_fn(out_uint8[0], save_file_format, save_dir + '/%d_valid_gen' % idx)
 
      out_bicu = (valid_lr_img + 1) * 127.5 # rescale to [0, 255]
      out_bicu = np.array(Image.fromarray(np.uint8(out_bicu)).resize((size[1] * 4, size[0] * 4), Image.BICUBIC))
      out_bicu_uint8 = out_bicu.astype('uint8')
-     save_img_fn(out_bicu_uint8, save_file_format, save_dir + '/valid_bicubic_%d' % idx)
+     save_img_fn(out_bicu_uint8, save_file_format, save_dir + '/%d_valid_bicubic' % idx)
 
 
 def enlarge():
@@ -213,7 +209,7 @@ def enlarge():
 
     ###========================== RESTORE G =============================###
     sess = tf.Session(config=tf.ConfigProto(allow_soft_placement=True, log_device_placement=False))
-    sess.run(tf.variables_initializer(tf.global_variables()))
+    sess.run(tf.variables_initializer(tf.compat.v1.global_variables()))
     tl.files.load_and_assign_npz(sess=sess, name=checkpoint_path + 'g.npz', network=net_g)
 
     ###======================= EVALUATION =============================###
@@ -232,7 +228,7 @@ def enlarge():
      print("[*] save images")
      out = (out + 1) * 127.5 # rescale to [0, 255]
      out_uint8 = out.astype('uint8')
-     save_img_fn(out_uint8[0], save_file_format, save_dir + '/enlarged_%d' % idx)
+     save_img_fn(out_uint8[0], save_file_format, save_dir + '/%d_enlarged' % idx)
 
 
 if __name__ == '__main__':
