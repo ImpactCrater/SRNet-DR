@@ -23,15 +23,15 @@ config.input_img_name_regx = '.*\.(bmp|png|webp|jpg)'
 
 # Adam
 config.TRAIN.sample_batch_size = 25
-config.TRAIN.batch_size = 4
+config.TRAIN.batch_size = 2
 config.TRAIN.learning_rate = 1e-4
 
 # training
-config.TRAIN.n_epoch = 100
+config.TRAIN.n_epoch = 400
 
 # noise reduction
 # WebP compression level; 1 to 100 (smaller value adds more noise)
-config.TRAIN.noise_level = 40
+config.TRAIN.noise_level = 10
 
 # train set location
 config.TRAIN.hr_img_path = config.home_path + '/SRNet-D/HRImage_Training/'
