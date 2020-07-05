@@ -7,7 +7,7 @@ from tensorlayer.prepro import *
 
 import scipy
 import numpy as np
-from PIL import Image, ImageMath
+from PIL import Image, ImageMath, ImageFilter, ImageOps
 import random
 from io import BytesIO
 from config import config
@@ -76,20 +76,28 @@ def crop_data_augment_fn(img, is_random=True):
     min_size = img.shape[0] if img.shape[0] < img.shape[1] else img.shape[1]
     random_size = random.randrange(384, min_size)
     img = crop(img, wrg=random_size, hrg=random_size, is_random=is_random)
-    img = Image.fromarray(np.uint8(img)).resize((384, 384), Image.BICUBIC)
+    img = Image.fromarray(np.uint8(img))
+    img = ImageOps.autocontrast(img, 0.01) # auto contrast, 0.01% cut-off
+    img = img.filter(ImageFilter.UnsharpMask(radius = 0.5, percent = 400, threshold = 0)) # unsharp mask
+    img = img.resize((384, 384), Image.BICUBIC) # resize
     h, s, v = img.convert("HSV").split()
-    random_value = random.randrange(-12, 12)
-    h_shifted = h.point(lambda x: (x + random_value) % 255 if (x + random_value) % 255 >= 0 else 255 - (x + random_value))
+    random_value = random.randint(-12, 12)
+    h_shifted = h.point(lambda x: (x + random_value) % 255 if (x + random_value) % 255 >= 0 else 255 - (x + random_value)) # change hue
     img = Image.merge("HSV", (h_shifted, s, v)).convert("RGB")
+    random_value = random.randint(0, 1)
+    if random_value == 0:
+        img = ImageOps.mirror(img)
     img = np.array(img)
     return img
 
 def downsample_fn(x):
     x = Image.fromarray(np.uint8(x)).resize((96, 96), Image.BICUBIC)
-    q = random.randrange(noise_level, 101)
+    random_radius = random.random()
+    x = x.filter(ImageFilter.GaussianBlur(random_radius))
+    q = random.randint(noise_level, 100)
     img_file = BytesIO()
     x.save(img_file, 'webp', quality=q)
     x = Image.open(img_file)
-    x = np.array(x) / 127.5 - 1
+    x = np.array(x) / 127.5 - 1 # rescale to [－1, 1]
     return x
     
