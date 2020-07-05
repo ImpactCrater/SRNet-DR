@@ -4,13 +4,14 @@
 - **Using "Group Normalization" layers instead of "Batch Normalization" layers.**
 - **Using "Residual of Residual Network".**
 - **Using "Swish" activation function instead of "ReLU".**
-- **Using MAE (Mean Absolute Error) loss and Sobel filter loss (high frequency loss).**
+- **Using (sqrt(1+difference^2))-1 loss.**
 - **Image data augmentation with random size cropping at random position, and random hue rotation.**
+- **Auto-contrast and unsharp mask filter is applied to the training images.**
 - **Added compression noise removal capability by learning WebP image compression noise.**
 - **You can read/write PNG/WebP/BMP/JPEG/TIFF files.**
 
 ### System Requirements
-- **Memory: 10GB RAM**
+- **Memory for training: 16GB RAM**
 
 ## Preparation
 
@@ -21,11 +22,14 @@ We run this script under [TensorFlow](https://www.tensorflow.org) 1.13 and the [
 1. Follow the instructions below to install other requirements.
 ```bash
 cd ~/
+sudo pip install --upgrade pip
 sudo python3 -m pip install https://github.com/tensorlayer/tensorlayer/archive/1.11.1.zip
-git clone https://github.com/ImpactCrater/SRNet-D.git
+sudo python3 -m pip install tensorflow-gpu==1.13.1
+git clone https://github.com/ImpactCrater/SRNet-D
 sudo python3 -m pip install easydict
 sudo apt install python3-tk
-sudo apt install webp
+sudo pip uninstall numpy
+sudo pip install numpy==1.16.2
 
 wget https://github.com/webmproject/libwebp/archive/v1.0.2.zip
 unzip v1.0.2.zip
@@ -36,7 +40,7 @@ make
 sudo make install
 
 sudo python3 -m pip uninstall pillow
-python3.6 -m pip install -U --force-reinstall pillow-simd
+sudo python3 -m pip install -U --force-reinstall pillow-simd
 ```
 
 ### My Results
@@ -67,7 +71,7 @@ Original image is from iStock.
 ### You can use pre-trained model and re-train it.
  1. Download the [ZIP file from the file storage(Yahoo! JAPAN)](https://yahoo.jp/box/ULWJdj).
  1. Unzip it.
- 1. Move 2 files 'ae.npz', 'g.npz' into './SRNet-D/checkpoint/'.
+ 1. Move a file 'g.npz' into './SRNet-D/checkpoint/'.
  1. Run.
 
 ### Run
