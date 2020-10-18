@@ -141,10 +141,24 @@ class ImageFromDirectory(Dataset):
 
 
 
+# Swish activation function.
+class SwishFunction(torch.autograd.Function):
+    @staticmethod
+    def forward(ctx, i):
+        result = i * torch.sigmoid(i)
+        ctx.save_for_backward(i)
+        return result
 
-class Swish(torch.nn.Module): # Swish activation function.
+    @staticmethod
+    def backward(ctx, grad_output):
+        i = ctx.saved_tensors[0]
+        sigmoid_i = torch.sigmoid(i)
+        return grad_output * (sigmoid_i * (1 + i * (1 - sigmoid_i)))
+
+class Swish(torch.nn.Module):
     def forward(self, x):
-        return x * torch.sigmoid(x)
+        return SwishFunction.apply(x)
+
 
 
 
@@ -279,8 +293,7 @@ class Model(torch.nn.Module):
 
 def train():
     print("Now processing...")
-
-    # GPUが利用可能ならGPUを利用する。
+        # GPUが利用可能ならGPUを利用する。
     if torch.cuda.is_available():
       device = "cuda"
     else:
@@ -320,8 +333,8 @@ def train():
 
     # 学習用画像の DataLoader を作成する。
     dataloaderTraining = DataLoader(datasetTrain, batch_size=miniBatchSize, shuffle=True, num_workers=0, drop_last=True)
-
     for epoch in range(0, nEpoch):
+
         epochTime = time.time()
         totalSSIMRGBLoss, step = 0, 0
 
@@ -340,7 +353,10 @@ def train():
             miniBatchLR = miniBatchLR.to(device)
             model.train() # training モードに設定する。
             miniBatchGenerated = model(miniBatchLR) # 画像データをモデルに入力する。
+            del miniBatchLR
             ssimRGBLoss = torch.pow(1 - ssimLossFunction(miniBatchGenerated, miniBatchHR), 2) # 生成画像と正解画像との間の損失を計算させる。
+            del miniBatchHR
+            del miniBatchGenerated
             optimizer.zero_grad() # 勾配を初期化する。
             ssimRGBLoss.backward() # 誤差逆伝播により勾配を計算させる。
             optimizer.step() # パラメーターを更新させる。
@@ -366,6 +382,7 @@ def train():
 
         print("Epoch[{:2d}/{:2d}] Time: {:4.2f} SSIM_RGB_Loss: {:.8f}".format(
             epoch, nEpoch, time.time() - epochTime, totalSSIMRGBLoss / nStep))
+
 
 
 
