@@ -87,4 +87,4 @@ python main.py --mode=enlarge
 ```
 
 ### License
-MIT License.
+[MIT License](https://github.com/ImpactCrater/SRNet-D/blob/master/LICENSE.txt)
