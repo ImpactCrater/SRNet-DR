@@ -352,7 +352,7 @@ def train():
             step += 1
 
             # Validationを実行する。
-            if i % 20 == 0:
+            if i % 1000 == 0:
                 model.eval() # evaluation モードに設定する。
                 with torch.no_grad(): # 以下のスコープ内では勾配計算をさせない。
                     j = 0
