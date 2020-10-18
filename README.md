@@ -8,6 +8,8 @@
 - **Auto-contrast and unsharp mask filter is applied to the training images.**
 - **Added compression noise removal capability by learning WebP image compression noise.**
 - **You can read/write PNG/WebP/BMP/JPEG/TIFF files.**
+- **This project contains "[pytorch-ssim](https://github.com/Po-Hsun-Su/pytorch-ssim)" licensed under the MIT License.**
+- **"class SwishFunction" is based on a part of the code in "https://github.com/ceshine/EfficientNet-PyTorch". It is licensed under the Apache License.**
 
 ### System Requirements
 - **Memory for training: 16GB+ RAM**
