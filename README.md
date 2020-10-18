@@ -11,8 +11,10 @@
 - **This project contains "[pytorch-ssim](https://github.com/Po-Hsun-Su/pytorch-ssim)" licensed under the MIT License.**
 - **"class SwishFunction" is based on a part of the code in "https://github.com/ceshine/EfficientNet-PyTorch". It is licensed under the Apache License.**
 
-### System Requirements
-- **Memory for training: 16GB+ RAM**
+### Required Memory
+- **For training with CPU: 24GB+ RAM**
+- **For training with GPU: 16GB+ VRAM**
+- **For enlargement: 4GB+ RAM**
 
 ## Preparation
 
