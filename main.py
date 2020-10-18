@@ -215,18 +215,18 @@ class Model(torch.nn.Module):
 
         layersList.append(torch.nn.Tanh())
 
-        self.residualBlockLayers = torch.nn.ModuleList(layersList)
+        self.Layers = torch.nn.ModuleList(layersList)
 
     def forward(self, x):
         i = 0
 
-        x = self.residualBlockLayers[i](x) # Conv2d
+        x = self.Layers[i](x) # Conv2d
         i += 1
-        x = self.residualBlockLayers[i](x) # Swish
+        x = self.Layers[i](x) # Swish
         i += 1
-        x = self.residualBlockLayers[i](x) # GroupNorm
+        x = self.Layers[i](x) # GroupNorm
         i += 1
-        x = self.residualBlockLayers[i](x) # Swish
+        x = self.Layers[i](x) # Swish
         i += 1
 
         # Residual Blocks
@@ -234,42 +234,42 @@ class Model(torch.nn.Module):
         for k in range(self.nResidualBlocks2):
             x0 = x
             for j in range(self.nResidualBlocks1):
-                h = self.residualBlockLayers[i](x) # Conv2d
+                h = self.Layers[i](x) # Conv2d
                 i += 1
-                h = self.residualBlockLayers[i](h) # Swish
+                h = self.Layers[i](h) # Swish
                 i += 1
-                h = self.residualBlockLayers[i](h) # Conv2d
+                h = self.Layers[i](h) # Conv2d
                 i += 1
-                h = self.residualBlockLayers[i](h) # Swish
+                h = self.Layers[i](h) # Swish
                 i += 1
                 x = x + h
-            x = self.residualBlockLayers[i](x) # Conv2d
+            x = self.Layers[i](x) # Conv2d
             i += 1
-            x = self.residualBlockLayers[i](x) # Swish
+            x = self.Layers[i](x) # Swish
             i += 1
             x = x + x0
-        x = self.residualBlockLayers[i](x) # Conv2d
+        x = self.Layers[i](x) # Conv2d
         i += 1
-        x = self.residualBlockLayers[i](x) # Swish
+        x = self.Layers[i](x) # Swish
         i += 1
         x = x + x1
         # Residual Blocks end
 
-        x = self.residualBlockLayers[i](x) # Conv2d
+        x = self.Layers[i](x) # Conv2d
         i += 1
-        x = self.residualBlockLayers[i](x) # PixelShuffle
+        x = self.Layers[i](x) # PixelShuffle
         i += 1
-        x = self.residualBlockLayers[i](x) # Swish
+        x = self.Layers[i](x) # Swish
         i += 1
-        x = self.residualBlockLayers[i](x) # Conv2d
+        x = self.Layers[i](x) # Conv2d
         i += 1
-        x = self.residualBlockLayers[i](x) # PixelShuffle
+        x = self.Layers[i](x) # PixelShuffle
         i += 1
-        x = self.residualBlockLayers[i](x) # Swish
+        x = self.Layers[i](x) # Swish
         i += 1
-        x = self.residualBlockLayers[i](x) # Conv2d
+        x = self.Layers[i](x) # Conv2d
         i += 1
-        x = self.residualBlockLayers[i](x) # Tanh
+        x = self.Layers[i](x) # Tanh
 
         return x
 
