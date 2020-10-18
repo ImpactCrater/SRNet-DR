@@ -1,234 +1,472 @@
 #! /usr/bin/python3
 # -*- coding: utf8 -*-
 
-import os, time, pickle, random, time
-from datetime import datetime
-import numpy as np
-from time import localtime, strftime
-import logging, scipy
+import os, time, random, re, glob
+from pathlib import Path
 import math
+import random
+import numpy as np
+from PIL import Image, ImageMath, ImageFilter, ImageOps
+from io import BytesIO
+import torch
+from torch.utils.data import DataLoader, Dataset
+from torchvision import transforms, utils
+import pytorch_ssim
+from config import config
 
-import tensorflow as tf
-import tensorlayer as tl
-from model import Generator
-from utils import *
-from config import config, log_config
-from PIL import Image
-
-import re
-import glob
 
 ###====================== HYPER-PARAMETERS ===========================###
-## batch size
-sample_batch_size = config.TRAIN.sample_batch_size
+## File Format
+saveFileFormat = config.saveFileFormat
 
-## file format
-save_file_format = config.save_file_format
-input_img_name_regx = config.input_img_name_regx
+## Mini Batch
+miniBatchSize = config.miniBatchSize
 
 ## Adam
-batch_size = config.TRAIN.batch_size
-learning_rate = config.TRAIN.learning_rate
+learningRate = config.learningRate
 
-## training
-n_epoch = config.TRAIN.n_epoch
+## Training
+nEpoch = config.nEpoch
+noiseLevel = config.noiseLevel
 
-## paths
-samples_path = config.samples_path
-checkpoint_path = config.checkpoint_path
-valid_hr_img_path = config.VALID.hr_img_path
-train_hr_img_path = config.TRAIN.hr_img_path
-eval_img_path = config.VALID.eval_img_path
-enlargement_lr_img_path = config.VALID.enlargement_lr_img_path
+## Paths
+samplesPath = config.samplesPath
+checkpointPath = config.checkpointPath
+weightFilePath = os.path.join(checkpointPath, 'g.h5')
+validationHRImagePath = config.validationHRImagePath
+trainingHRImagePath = config.trainingHRImagePath
+evaluationImagePath = config.evaluationImagePath
+enlargementLRImagePath = config.enlargementLRImagePath
 
-ni = int(np.sqrt(sample_batch_size))
 
 
-def load_deep_file_list(path=None, regx='\.npz', recursive=True, printable=True):
-    if path == False:
-        path = os.getcwd()
-    pathStar = path + '**'
-    file_list = glob.glob(pathStar, recursive=recursive)
-    return_list = []
-    for idx, f in enumerate(file_list):
-        if re.search(regx, f):
-            fShort = f.replace(path,'')
-            return_list.append(fShort)
-    if printable:
-        print('Match file list = %s' % return_list)
-        print('Number of files = %d' % len(return_list))
-    return return_list
+
+
+class ImageFromDirectory(Dataset):
+    imageExtensions = [".jpg", ".jpeg", ".png", ".bmp", ".webp"] # 拡張子のリストをクラス変数として宣言。
+
+    def __init__(self, imageDirectory, mode):
+        if imageDirectory == False:
+            self.imageDirectory = os.getcwd()
+        else:
+            self.imageDirectory = imageDirectory
+
+        self.mode = mode
+
+        # 画像ファイルのパスのリストを取得する。
+        self.imagePathsList = self._getImagePaths()
+
+    def __getitem__(self, index):
+        # index 番目のデータが要求された時にそれを返す。
+        path = self.imagePathsList[index]
+
+        # 画像ファイルをPillow形式で読み込む。
+        image = Image.open(path)
+
+        transformToTensor = transforms.Compose([transforms.ToTensor()])
+        if self.mode == "training" or self.mode == "validation":
+            # 画像データに変換を施す。
+            imageHR = self._preprocess(image)
+            imageLR = self._downsampleAndDeteriorate(imageHR)
+            imageHR = transformToTensor(imageHR)
+            imageLR = transformToTensor(imageLR)
+
+            return imageHR, imageLR
+
+        elif self.mode == "evaluation":
+            imageHR = self._enlarge(image)
+            imageHR = transformToTensor(imageHR)
+            imageLR = transformToTensor(image)
+
+            return imageHR, imageLR
+
+        elif self.mode == "enlargement":
+            imageLR = transformToTensor(image)
+
+            return imageLR
+
+    def updateDataList(self):
+        # 画像ファイルのパスのリストを新たに取得する。
+        self.imagePathsList = self._getImagePaths()
+
+    def _getImagePaths(self):
+        # 指定したディレクトリー内の画像ファイルのパスのリストを取得する。
+        imageDirectory = Path(self.imageDirectory)
+        imagePathsList = [
+            p for p in imageDirectory.glob("**/*") if p.suffix in ImageFromDirectory.imageExtensions]
+
+        return imagePathsList
+
+    def _enlarge(self, image):
+        image = image.resize((image.width * 4, image.height * 4), Image.BICUBIC) # resize
+        return image
+
+    def _preprocess(self, image):
+        minSize = image.width if image.width < image.height else image.height
+        randomSize = random.randrange(384, minSize)
+        left = random.randrange(0, image.width - randomSize)
+        top = random.randrange(0, image.height - randomSize)
+        right = left + randomSize
+        bottom = top + randomSize
+        image = image.crop((left, top, right, bottom))
+        image = ImageOps.autocontrast(image, 0.01) # auto contrast, 0.01% cut-off
+        image = image.filter(ImageFilter.UnsharpMask(radius = 0.5, percent = 400, threshold = 0)) # unsharp mask
+        image = image.resize((384, 384), Image.BICUBIC) # resize
+        h, s, v = image.convert("HSV").split()
+        randomValue = random.randint(-16, 16)
+        hShifted = h.point(lambda x: (x + randomValue) % 255 if (x + randomValue) % 255 >= 0 else 255 - (x + randomValue)) # change hue
+        image = Image.merge("HSV", (hShifted, s, v)).convert("RGB")
+        randomValue = random.randint(0, 1)
+        if randomValue == 0:
+            image = ImageOps.mirror(image)
+
+        return image
+
+    def _downsampleAndDeteriorate(self, image):
+        image = image.resize((96, 96), Image.BICUBIC)
+        randomRadius = random.random()
+        image = image.filter(ImageFilter.GaussianBlur(randomRadius))
+        q = random.randint(noiseLevel, 100)
+        imageFile = BytesIO()
+        image.save(imageFile, 'webp', quality=q)
+        image = Image.open(imageFile)
+        return image
+
+    def __len__(self):
+        # len(datasetインスタンス)でディレクトリー内の画像ファイルの数を返す。
+
+        return len(self.imagePathsList)
+
+
+
+
+
+
+class Swish(torch.nn.Module): # Swish activation function.
+    def forward(self, x):
+        return x * torch.sigmoid(x)
+
+
+
+
+
+class Model(torch.nn.Module):
+    def __init__(self):
+        super().__init__() # 親クラスである torch.nn.Module の __init__ を継承する。
+        # weightの初期化はKaiming Heの初期化で自動的に成される。
+
+        nChannels = 128
+        self.nResidualBlocks1 = 8
+        self.nResidualBlocks2 = 16
+        index = 0
+        layersList = []
+
+        layersList.append(
+            torch.nn.Conv2d(in_channels=3, out_channels=nChannels * 1, kernel_size=(3, 3), stride=1, padding=1, dilation=1, groups=1, bias=True, padding_mode='replicate'))
+
+        layersList.append(Swish())
+
+        layersList.append(
+            torch.nn.GroupNorm(num_groups=int(nChannels * 1 / 8), num_channels=nChannels * 1, eps=1e-05, affine=True))
+
+        layersList.append(Swish())
+
+        # Residual Blocks
+        for j in range(self.nResidualBlocks2):
+            for i in range(self.nResidualBlocks1):
+                layersList.append(
+                    torch.nn.Conv2d(in_channels=nChannels * 1, out_channels=nChannels * 2, kernel_size=(3, 3), stride=1, padding=1, dilation=1, groups=1, bias=True, padding_mode='replicate'))
+
+                layersList.append(Swish())
+
+                layersList.append(
+                    torch.nn.Conv2d(in_channels=nChannels * 2, out_channels=nChannels * 1, kernel_size=(3, 3), stride=1, padding=1, dilation=1, groups=1, bias=True, padding_mode='replicate'))
+
+                layersList.append(Swish())
+
+            layersList.append(
+                torch.nn.Conv2d(in_channels=nChannels * 1, out_channels=nChannels, kernel_size=(3, 3), stride=1, padding=1, dilation=1, groups=1, bias=True, padding_mode='replicate'))
+
+            layersList.append(Swish())
+
+        layersList.append(
+            torch.nn.Conv2d(in_channels=nChannels * 1, out_channels=nChannels, kernel_size=(3, 3), stride=1, padding=1, dilation=1, groups=1, bias=True, padding_mode='replicate'))
+
+        layersList.append(Swish())
+        # Residual Blocks end
+
+        layersList.append(
+            torch.nn.Conv2d(in_channels=nChannels * 1, out_channels=256, kernel_size=(3, 3), stride=1, padding=1, dilation=1, groups=1, bias=True, padding_mode='replicate'))
+
+        layersList.append(
+            torch.nn.PixelShuffle(upscale_factor=2))
+
+        layersList.append(Swish())
+
+        layersList.append(
+            torch.nn.Conv2d(in_channels=64, out_channels=256, kernel_size=(3, 3), stride=1, padding=1, dilation=1, groups=1, bias=True, padding_mode='replicate'))
+
+        layersList.append(torch.nn.PixelShuffle(upscale_factor=2))
+
+        layersList.append(Swish())
+
+        layersList.append(
+            torch.nn.Conv2d(in_channels=64, out_channels=3, kernel_size=(1, 1), stride=1, padding=0, dilation=1, groups=1, bias=True, padding_mode='replicate'))
+
+        layersList.append(torch.nn.Tanh())
+
+        self.residualBlockLayers = torch.nn.ModuleList(layersList)
+
+    def forward(self, x):
+        i = 0
+
+        x = self.residualBlockLayers[i](x) # Conv2d
+        i += 1
+        x = self.residualBlockLayers[i](x) # Swish
+        i += 1
+        x = self.residualBlockLayers[i](x) # GroupNorm
+        i += 1
+        x = self.residualBlockLayers[i](x) # Swish
+        i += 1
+
+        # Residual Blocks
+        x1 = x
+        for k in range(self.nResidualBlocks2):
+            x0 = x
+            for j in range(self.nResidualBlocks1):
+                h = self.residualBlockLayers[i](x) # Conv2d
+                i += 1
+                h = self.residualBlockLayers[i](h) # Swish
+                i += 1
+                h = self.residualBlockLayers[i](h) # Conv2d
+                i += 1
+                h = self.residualBlockLayers[i](h) # Swish
+                i += 1
+                x = x + h
+            x = self.residualBlockLayers[i](x) # Conv2d
+            i += 1
+            x = self.residualBlockLayers[i](x) # Swish
+            i += 1
+            x = x + x0
+        x = self.residualBlockLayers[i](x) # Conv2d
+        i += 1
+        x = self.residualBlockLayers[i](x) # Swish
+        i += 1
+        x = x + x1
+        # Residual Blocks end
+
+        x = self.residualBlockLayers[i](x) # Conv2d
+        i += 1
+        x = self.residualBlockLayers[i](x) # PixelShuffle
+        i += 1
+        x = self.residualBlockLayers[i](x) # Swish
+        i += 1
+        x = self.residualBlockLayers[i](x) # Conv2d
+        i += 1
+        x = self.residualBlockLayers[i](x) # PixelShuffle
+        i += 1
+        x = self.residualBlockLayers[i](x) # Swish
+        i += 1
+        x = self.residualBlockLayers[i](x) # Conv2d
+        i += 1
+        x = self.residualBlockLayers[i](x) # Tanh
+
+        return x
+
+
+
 
 
 def train():
-    ## create folders to save result images and trained model
-    save_dir_generated = samples_path + "generated"
-    tl.files.exists_or_mkdir(save_dir_generated)
-    tl.files.exists_or_mkdir(checkpoint_path)
+    print("Now processing...")
 
-    ###====================== PRE-LOAD DATA ===========================###
-    valid_hr_img_list = sorted(tl.files.load_file_list(path=valid_hr_img_path, regx=input_img_name_regx, printable=False))
+    # GPUが利用可能ならGPUを利用する。
+    if torch.cuda.is_available():
+      device = "cuda"
+    else:
+      device = "cpu"
 
-    ###========================== DEFINE MODEL ============================###
-    ## train inference
-    sample_t_image = tf.compat.v1.placeholder('float32', [sample_batch_size, 96, 96, 3], name='sample_t_image_input_to_generator')
-    t_image = tf.compat.v1.placeholder('float32', [batch_size, 96, 96, 3], name='t_image_input_to_generator')
-    t_target_image = tf.compat.v1.placeholder('float32', [batch_size, 384, 384, 3], name='t_target_image')
+    # モデルのインスタンスを作成する。
+    model = Model()
+    if os.path.isfile(checkpointPath + "model.pth"):
+        model.load_state_dict(torch.load(checkpointPath + "model.pth", map_location=torch.device('cpu')))
+    model = model.to(device)
 
-    net_g = Generator(t_image, is_train=True, reuse=False)
+    # オプティマイザーを作成する。
+    optimizer = torch.optim.Adam(params=model.parameters(), lr=learningRate, betas=(0.9, 0.999), eps=1e-08, weight_decay=0, amsgrad=False)
 
-    net_g.print_params(False)
-    net_g.print_layers()
+    # SSIM損失関数のインスタンスを作成する。
+    ssimLossFunction = pytorch_ssim.SSIM(window_size=11) # torch.nn.Moduleを継承している。
 
-    ## test inference
-    net_g_test = Generator(sample_t_image, is_train=False, reuse=True)
+    saveDirectoryGenerated = samplesPath + "generated"
 
-    # ###========================== DEFINE TRAIN OPS ==========================###
+    # 評価用画像の Dataset を作成する。
+    datasetValidation = ImageFromDirectory(validationHRImagePath, "validation")
 
-    # Loss (sqrt(1+difference^2))-1
-    g_loss = tf.reduce_mean(tf.map_fn(tf.math.sqrt, 1 + tf.pow(40*(t_target_image - net_g.outputs), 2))) - 1
+    # 評価用画像の DataLoader を作成する。
+    dataloaderValidation = DataLoader(datasetValidation, batch_size=miniBatchSize, shuffle=False, num_workers=0, drop_last=False)
 
-    with tf.variable_scope('learning_rate'):
-        learning_rate_var = tf.Variable(learning_rate, trainable=False)
+    # 評価用画像を保存する。
+    miniBatchLRList = []
+    i = 0
+    for miniBatchHR, miniBatchLR in dataloaderValidation:
+        utils.save_image(miniBatchHR, saveDirectoryGenerated + "/" + str(i) + "-HR.png", nrow=16)
+        utils.save_image(miniBatchLR, saveDirectoryGenerated + "/" + str(i) + "-LR.png", nrow=16)
+        miniBatchLRList.append(miniBatchLR)
+        i += 1
 
-    g_vars = tl.layers.get_variables_with_name('Generator', True, True)
+    # 学習用画像の Dataset を作成する。
+    datasetTrain = ImageFromDirectory(trainingHRImagePath, "training")
 
-    ## Optimizer
-    g_optim = tf.compat.v1.train.AdamOptimizer(learning_rate=learning_rate_var).minimize(g_loss, var_list=g_vars)
+    # 学習用画像の DataLoader を作成する。
+    dataloaderTraining = DataLoader(datasetTrain, batch_size=miniBatchSize, shuffle=True, num_workers=0, drop_last=True)
 
-    ###========================== RESTORE MODEL =============================###
-    sess = tf.Session(config=tf.ConfigProto(allow_soft_placement=True, log_device_placement=False))
-    sess.run(tf.variables_initializer(tf.compat.v1.global_variables()))
-    tl.files.load_and_assign_npz(sess=sess, name=checkpoint_path + 'g.npz', network=net_g)
+    for epoch in range(0, nEpoch):
+        epochTime = time.time()
+        totalSSIMRGBLoss, step = 0, 0
 
-    ###============================= TRAINING ===============================###
-    sample_imgs = tl.prepro.threading_data(valid_hr_img_list[0:sample_batch_size], fn=get_imgs_fn, path=valid_hr_img_path)
-    sample_imgs_384 = tl.prepro.threading_data(sample_imgs, fn=crop_sub_imgs_fn, is_random=False)
-    print('sample HR sub-image:', sample_imgs_384.shape, sample_imgs_384.min(), sample_imgs_384.max())
-    sample_imgs_96 = tl.prepro.threading_data(sample_imgs_384, fn=downsample_fn)
-    print('sample LR sub-image:', sample_imgs_96.shape, sample_imgs_96.min(), sample_imgs_96.max())
-    save_images(sample_imgs_96, [ni, ni], save_file_format, save_dir_generated + '/_train_sample_96')
-    save_images(sample_imgs_384, [ni, ni], save_file_format, save_dir_generated + '/_train_sample_384')
+        datasetTrain.updateDataList() # データセットのリストを更新する。
 
-    ###========================= train =========================###
-    sess.run(tf.compat.v1.assign(learning_rate_var, learning_rate))
-    for epoch in range(0, n_epoch + 1):
-        epoch_time = time.time()
-        total_g_loss, step = 0, 0
+        nImagesTrain = len(datasetTrain)
+        nStep = math.floor(nImagesTrain / miniBatchSize)
+        print("The dataset has been updated.")
+        print("Number of Images: {} Number of Steps: {}".format(nImagesTrain, nStep))
 
-        train_hr_img_list = load_deep_file_list(path=train_hr_img_path, regx=input_img_name_regx, recursive=True, printable=False)
-        random.shuffle(train_hr_img_list)
+        i = 0
+        for miniBatchHR, miniBatchLR in dataloaderTraining:
 
-        list_length = len(train_hr_img_list)
-        print("Number of images: %d" % (list_length))
+            stepTime = time.time()
+            miniBatchHR = miniBatchHR.to(device)
+            miniBatchLR = miniBatchLR.to(device)
+            model.train() # training モードに設定する。
+            miniBatchGenerated = model(miniBatchLR) # 画像データをモデルに入力する。
+            ssimRGBLoss = torch.pow(1 - ssimLossFunction(miniBatchGenerated, miniBatchHR), 2) # 生成画像と正解画像との間の損失を計算させる。
+            optimizer.zero_grad() # 勾配を初期化する。
+            ssimRGBLoss.backward() # 誤差逆伝播により勾配を計算させる。
+            optimizer.step() # パラメーターを更新させる。
 
-        if list_length % batch_size != 0:
-            train_hr_img_list += train_hr_img_list[0:batch_size - list_length % batch_size:1]
+            totalSSIMRGBLoss += float(ssimRGBLoss)
+            print("Epoch: {:2d} Step: {:4d} Time: {:4.2f} SSIM_RGB_Loss: {:.8f}".format(
+                  epoch, step, time.time() - stepTime, ssimRGBLoss)) # SSIM損失値を表示させる。
 
-        list_length = len(train_hr_img_list)
-        print("Length of list: %d" % (list_length))
-        n_step = list_length / batch_size
-        print("Number of steps: %d" % (n_step))
-
-        for idx in range(0, list_length, batch_size):
-            step_time = time.time()
-            b_imgs_list = train_hr_img_list[idx : idx + batch_size]
-            b_imgs = tl.prepro.threading_data(b_imgs_list, fn=get_imgs_fn, path=train_hr_img_path)
-            b_imgs_384 = tl.prepro.threading_data(b_imgs, fn=crop_data_augment_fn, is_random=True)
-            b_imgs_96 = tl.prepro.threading_data(b_imgs_384, fn=downsample_fn)
-            b_imgs_384 = tl.prepro.threading_data(b_imgs_384, fn=rescale_m1p1)
-
-            ## update G
-            errG, _ = sess.run([g_loss, g_optim], {t_image: b_imgs_96, t_target_image: b_imgs_384})
-            print("Epoch: %2d Step: %4d time: %4.2fs g_loss: %.8f" %
-                  (epoch, step,  time.time() - step_time, errG))
-            total_g_loss += errG
             step += 1
 
-        log = ("[*] Epoch[%2d/%2d] time: %4.2fs g_loss: %.8f" %
-            (epoch, n_epoch, time.time() - epoch_time, total_g_loss / n_step))
-        print(log)
+            # Validationを実行する。
+            if i % 20 == 0:
+                model.eval() # evaluation モードに設定する。
+                with torch.no_grad(): # 以下のスコープ内では勾配計算をさせない。
+                    j = 0
+                    for miniBatchLR in miniBatchLRList:
+                        miniBatchGenerated = model(miniBatchLR) # 評価用画像データのミニバッチをモデルに入力する。
+                        utils.save_image(miniBatchGenerated, saveDirectoryGenerated + "/" + str(j) + "-" + str(epoch) + "-" + str(i) + ".png", nrow=16)
+                        torch.save(model.to("cpu").state_dict(), checkpointPath + "model.pth") # モデル データを保存する。
+                        j += 1
 
-        ## quick evaluation on train set
-        out = sess.run(net_g_test.outputs, {sample_t_image: sample_imgs_96})
-        print("[*] save images")
-        save_images(out, [ni, ni], save_file_format, save_dir_generated + '/train_%d' % epoch)
+            i += 1
 
-        ## save model
-        tl.files.save_npz(net_g.all_params, name=checkpoint_path + 'g.npz', sess=sess)
+        print("Epoch[{:2d}/{:2d}] Time: {:4.2f} SSIM_RGB_Loss: {:.8f}".format(
+            epoch, nEpoch, time.time() - epochTime, totalSSIMRGBLoss / nStep))
+
+
+
+
+
 
 
 def evaluate():
-    ## create folders to save result images
-    save_dir = samples_path + "evaluated"
-    tl.files.exists_or_mkdir(save_dir)
+    print("Now processing...")
 
-    ###========================== DEFINE MODEL ============================###
-    t_image = tf.compat.v1.placeholder('float32', [1, None, None, 3], name='input_image')
+    # GPUが利用可能ならGPUを利用する。
+    if torch.cuda.is_available():
+      device = "cuda"
+    else:
+      device = "cpu"
 
-    net_g = Generator(t_image, is_train=False, reuse=False)
+    # モデルのインスタンスを作成する。
+    model = Model()
+    if os.path.isfile(checkpointPath + "model.pth"):
+        model.load_state_dict(torch.load(checkpointPath + "model.pth", map_location=torch.device('cpu')))
+    model = model.to(device)
 
-    ###========================== RESTORE G =============================###
-    sess = tf.Session(config=tf.ConfigProto(allow_soft_placement=True, log_device_placement=False))
-    sess.run(tf.variables_initializer(tf.compat.v1.global_variables()))
-    tl.files.load_and_assign_npz(sess=sess, name=checkpoint_path + 'g.npz', network=net_g)
 
-    ###======================= EVALUATION =============================###
-    eval_img_name_list = sorted(load_deep_file_list(path=eval_img_path, regx=input_img_name_regx, recursive=True, printable=False))
-    list_length = len(eval_img_name_list)
-    print("Number of images: %d" % (list_length))
-    for idx in range(0, list_length):
-     valid_lr_img = get_imgs_fn(eval_img_name_list[idx], eval_img_path) # if you want to test your own image
-     valid_lr_img = rescale_m1p1(valid_lr_img)
-     size = valid_lr_img.shape
+    # 入力画像の Dataset を作成する。
+    datasetEvaluation = ImageFromDirectory(evaluationImagePath, "evaluation")
 
-     start_time = time.time()
-     out = sess.run(net_g.outputs, {t_image: [valid_lr_img]})
-     print("took: %4.4fs" % (time.time() - start_time))
-     print("LR size: %s /  generated HR size: %s" % (size, out.shape))
-     print("[*] save images")
-     out = (out + 1) * 127.5 # rescale to [0, 255]
-     out_uint8 = out.astype('uint8')
-     save_img_fn(out_uint8[0], save_file_format, save_dir + '/%d_valid_gen' % idx)
+    # 入力画像の DataLoader を作成する。
+    dataloaderEvaluation = DataLoader(datasetEvaluation, batch_size=1, shuffle=False, num_workers=0, drop_last=False)
 
-     out_bicu = (valid_lr_img + 1) * 127.5 # rescale to [0, 255]
-     out_bicu = np.array(Image.fromarray(np.uint8(out_bicu)).resize((size[1] * 4, size[0] * 4), Image.BICUBIC))
-     out_bicu_uint8 = out_bicu.astype('uint8')
-     save_img_fn(out_bicu_uint8, save_file_format, save_dir + '/%d_valid_bicubic' % idx)
+    saveDirectoryGenerated = samplesPath + "evaluated"
+
+    nImagesEvaluation = len(datasetEvaluation)
+    nStep = math.floor(nImagesEvaluation / miniBatchSize)
+    print("Number of Images: {}".format(nImagesEvaluation))
+
+    i = 0
+    for miniBatchHR, miniBatchLR in dataloaderEvaluation:
+        model.eval() # evaluation モードに設定する。
+        with torch.no_grad(): # 以下のスコープ内では勾配計算をさせない。
+            stepTime = time.time()
+            miniBatchHR = miniBatchHR.to(device)
+            miniBatchLR = miniBatchLR.to(device)
+            miniBatchGenerated = model(miniBatchLR) # 画像データをモデルに入力する。
+            utils.save_image(miniBatchHR, saveDirectoryGenerated + "/" + str(i) + "-Bicubic.png", nrow=16)
+            utils.save_image(miniBatchGenerated, saveDirectoryGenerated + "/" + str(i) + "-Generated.png", nrow=16)
+
+            i += 1
+            print("{}: Time: {:4.2f}".format(i, time.time() - stepTime))
+
+    print("Done.")
+
+
+
+
+
 
 
 def enlarge():
-    ## create folders to save result images
-    save_dir = samples_path + "enlarged"
-    tl.files.exists_or_mkdir(save_dir)
+    print("Now processing...")
 
-    ###========================== DEFINE MODEL ============================###
-    t_image = tf.compat.v1.placeholder('float32', [1, None, None, 3], name='input_image')
+    # GPUが利用可能ならGPUを利用する。
+    if torch.cuda.is_available():
+      device = "cuda"
+    else:
+      device = "cpu"
 
-    net_g = Generator(t_image, is_train=False, reuse=False)
+    # モデルのインスタンスを作成する。
+    model = Model()
+    if os.path.isfile(checkpointPath + "model.pth"):
+        model.load_state_dict(torch.load(checkpointPath + "model.pth", map_location=torch.device('cpu')))
+    model = model.to(device)
 
-    ###========================== RESTORE G =============================###
-    sess = tf.Session(config=tf.ConfigProto(allow_soft_placement=True, log_device_placement=False))
-    sess.run(tf.variables_initializer(tf.compat.v1.global_variables()))
-    tl.files.load_and_assign_npz(sess=sess, name=checkpoint_path + 'g.npz', network=net_g)
 
-    ###======================= EVALUATION =============================###
-    enlarge_img_name_list = sorted(load_deep_file_list(path=enlargement_lr_img_path, regx=input_img_name_regx, recursive=True, printable=False))
-    list_length = len(enlarge_img_name_list)
-    print("Number of images: %d" % (list_length))
-    for idx in range(0, list_length):
-     valid_lr_img = get_imgs_fn(enlarge_img_name_list[idx], enlargement_lr_img_path)
-     valid_lr_img = rescale_m1p1(valid_lr_img)
-     size = valid_lr_img.shape
+    # 入力画像の Dataset を作成する。
+    datasetEnlargement = ImageFromDirectory(enlargementLRImagePath, "enlargement")
 
-     start_time = time.time()
-     out = sess.run(net_g.outputs, {t_image: [valid_lr_img]})
-     print("took: %4.4fs" % (time.time() - start_time))
-     print("LR size: %s /  generated HR size: %s" % (size, out.shape))
-     print("[*] save images")
-     out = (out + 1) * 127.5 # rescale to [0, 255]
-     out_uint8 = out.astype('uint8')
-     save_img_fn(out_uint8[0], save_file_format, save_dir + '/%d_enlarged' % idx)
+    # 入力画像の DataLoader を作成する。
+    dataloaderEnlargement = DataLoader(datasetEnlargement, batch_size=1, shuffle=False, num_workers=0, drop_last=False)
+
+    saveDirectoryGenerated = samplesPath + "enlarged"
+
+    nImagesEnlargement = len(datasetEnlargement)
+    nStep = math.floor(nImagesEnlargement / miniBatchSize)
+    print("Number of Images: {}".format(nImagesEnlargement))
+
+    i = 0
+    for miniBatchLR in dataloaderEnlargement:
+        model.eval() # evaluation モードに設定する。
+        with torch.no_grad(): # 以下のスコープ内では勾配計算をさせない。
+            stepTime = time.time()
+            miniBatchLR = miniBatchLR.to(device)
+            miniBatchGenerated = model(miniBatchLR) # 画像データをモデルに入力する。
+            utils.save_image(miniBatchGenerated, saveDirectoryGenerated + "/" + str(i) + ".png", nrow=1)
+
+            i += 1
+            print("{}: Time: {:4.2f}".format(i, time.time() - stepTime))
+
+    print("Done.")
+
+
+
 
 
 if __name__ == '__main__':
@@ -239,13 +477,13 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-    tl.global_flag['mode'] = args.mode
+    mode = args.mode
 
-    if tl.global_flag['mode'] == 'train':
+    if mode == 'train':
         train()
-    elif tl.global_flag['mode'] == 'evaluate':
+    elif mode == 'evaluate':
         evaluate()
-    elif tl.global_flag['mode'] == 'enlarge':
+    elif mode == 'enlarge':
         enlarge()
     else:
         raise Exception("Unknow --mode")
