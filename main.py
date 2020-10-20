@@ -302,7 +302,7 @@ def train():
     # モデルのインスタンスを作成する。
     model = Model()
     if os.path.isfile(checkpointPath + "model.pth"):
-        model.load_state_dict(torch.load(checkpointPath + "model.pth", map_location=torch.device('cpu')))
+        model.load_state_dict(torch.load(checkpointPath + "model.pth", map_location=torch.device(device)))
     model = model.to(device)
 
     # オプティマイザーを作成する。
@@ -368,14 +368,15 @@ def train():
             step += 1
 
             # Validationを実行する。
-            if i % 1000 == 0:
+            if i % 2000 == 0:
                 model.eval() # evaluation モードに設定する。
                 with torch.no_grad(): # 以下のスコープ内では勾配計算をさせない。
                     j = 0
                     for miniBatchLR in miniBatchLRList:
+                        miniBatchLR = miniBatchLR.to(device)
                         miniBatchGenerated = model(miniBatchLR) # 評価用画像データのミニバッチをモデルに入力する。
                         utils.save_image(miniBatchGenerated, saveDirectoryGenerated + "/" + str(j) + "-" + str(epoch) + "-" + str(i) + ".png", nrow=16)
-                        torch.save(model.to("cpu").state_dict(), checkpointPath + "model.pth") # モデル データを保存する。
+                        torch.save(model.state_dict(), checkpointPath + "model.pth") # モデル データを保存する。
                         j += 1
 
             i += 1
