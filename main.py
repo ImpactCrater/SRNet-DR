@@ -169,7 +169,8 @@ class Model(torch.nn.Module):
         super().__init__() # 親クラスである torch.nn.Module の __init__ を継承する。
         # weightの初期化はKaiming Heの初期化で自動的に成される。
 
-        nChannels = 128
+        nChannels = 256
+        channelRatio = 1
         self.nResidualBlocks1 = 8
         self.nResidualBlocks2 = 16
         index = 0
@@ -189,12 +190,12 @@ class Model(torch.nn.Module):
         for j in range(self.nResidualBlocks2):
             for i in range(self.nResidualBlocks1):
                 layersList.append(
-                    torch.nn.Conv2d(in_channels=nChannels * 1, out_channels=nChannels * 2, kernel_size=(3, 3), stride=1, padding=1, dilation=1, groups=1, bias=True, padding_mode='replicate'))
+                    torch.nn.Conv2d(in_channels=nChannels * 1, out_channels=nChannels * channelRatio, kernel_size=(3, 3), stride=1, padding=1, dilation=1, groups=1, bias=True, padding_mode='replicate'))
 
                 layersList.append(Swish())
 
                 layersList.append(
-                    torch.nn.Conv2d(in_channels=nChannels * 2, out_channels=nChannels * 1, kernel_size=(3, 3), stride=1, padding=1, dilation=1, groups=1, bias=True, padding_mode='replicate'))
+                    torch.nn.Conv2d(in_channels=nChannels * channelRatio, out_channels=nChannels * 1, kernel_size=(3, 3), stride=1, padding=1, dilation=1, groups=1, bias=True, padding_mode='replicate'))
 
                 layersList.append(Swish())
 
@@ -364,6 +365,7 @@ def train():
             totalSSIMRGBLoss += float(ssimRGBLoss)
             print("Epoch: {:2d} Step: {:4d} Time: {:4.2f} SSIM_RGB_Loss: {:.8f}".format(
                   epoch, step, time.time() - stepTime, ssimRGBLoss)) # SSIM損失値を表示させる。
+            del ssimRGBLoss
 
             step += 1
 
