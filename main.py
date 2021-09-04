@@ -228,7 +228,7 @@ class Model(torch.nn.Module):
         layersList.append(
             torch.nn.Conv2d(in_channels=64, out_channels=3, kernel_size=(1, 1), stride=1, padding=0, dilation=1, groups=1, bias=True, padding_mode='replicate'))
 
-        layersList.append(torch.nn.Tanh())
+        layersList.append(torch.nn.Sigmoid())
 
         self.layers = torch.nn.ModuleList(layersList)
 
@@ -284,7 +284,7 @@ class Model(torch.nn.Module):
         i += 1
         x = self.layers[i](x) # Conv2d
         i += 1
-        x = self.layers[i](x) # Tanh
+        x = self.layers[i](x) # Sigmoid
 
         return x
 
