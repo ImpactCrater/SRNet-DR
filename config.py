@@ -7,10 +7,10 @@ config = edict()
 config.homePath = expanduser("~")
 
 # Checkpoint Location
-config.checkpointPath = config.homePath + '/SRNet-D/checkpoint/'
+config.checkpointPath = config.homePath + '/SRNet-DR/checkpoint/'
 
 # Samples Location
-config.samplesPath = config.homePath + '/SRNet-D/samples/'
+config.samplesPath = config.homePath + '/SRNet-DR/samples/'
 
 # Save File Format
 config.saveFileFormat = '.png'
@@ -29,13 +29,13 @@ config.nEpoch = 100
 config.noiseLevel = 10
 
 # Validation Set Location
-config.validationHRImagePath = config.homePath + '/SRNet-D/HRImage-Validation/'
+config.validationHRImagePath = config.homePath + '/SRNet-DR/HRImage-Validation/'
 
 # Train Set Location
-config.trainingHRImagePath = config.homePath + '/SRNet-D/HRImage-Training/'
+config.trainingHRImagePath = config.homePath + '/SRNet-DR/HRImage-Training/'
 
 # Test Set Location
-config.evaluationImagePath = config.homePath + '/SRNet-D/LRImage-Evaluation/'
+config.evaluationImagePath = config.homePath + '/SRNet-DR/LRImage-Evaluation/'
 
 # Tnlargement Set Location
-config.enlargementLRImagePath = config.homePath + '/SRNet-D/LRImage-Enlargement/'
+config.enlargementLRImagePath = config.homePath + '/SRNet-DR/LRImage-Enlargement/'
