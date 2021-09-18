@@ -26,7 +26,7 @@ We run this script under [PyTorch](https://pytorch.org/) 1.6 or later.
 ```bash
 cd ~/
 sudo pip install --upgrade pip
-git clone https://github.com/ImpactCrater/SRNet-D
+git clone https://github.com/ImpactCrater/SRNet-DR
 sudo python3 -m pip install easydict
 wget https://github.com/webmproject/libwebp/archive/v1.0.2.zip
 unzip v1.0.2.zip
