@@ -51,6 +51,9 @@ SOFTWARE.
 "pytorch-ssim" url = 'https://github.com/Po-Hsun-Su/pytorch-ssim'
 "pytorch-ssim" download_url = 'https://github.com/Po-Hsun-Su/pytorch-ssim/archive/0.1.tar.gz'
 
+The original code was created by Po-Hsun (Evan) Su.
+Partially modified by ImpactCrater.
+
 
 
 
@@ -260,3 +263,4 @@ SOFTWARE.
    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
    See the License for the specific language governing permissions and
    limitations under the License.
+
