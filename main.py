@@ -13,6 +13,7 @@ from torch.utils.data import DataLoader, Dataset
 from torchvision import transforms, utils
 import pytorch_ssim
 from config import config
+#from torchsummary import summary
 
 
 ###====================== HYPER-PARAMETERS ===========================###
@@ -28,6 +29,9 @@ learningRate = config.learningRate
 ## Training
 nEpoch = config.nEpoch
 noiseLevel = config.noiseLevel
+
+## Number of Iterations of the Step to Save
+nIterationOfStepToSave = config.nIterationOfStepToSave
 
 ## Paths
 samplesPath = config.samplesPath
@@ -93,7 +97,7 @@ class ImageFromDirectory(Dataset):
         # 指定したディレクトリー内の画像ファイルのパスのリストを取得する。
         imageDirectory = Path(self.imageDirectory)
         imagePathsList = [
-            p for p in imageDirectory.glob("**/*") if p.suffix in ImageFromDirectory.imageExtensions]
+            p for p in sorted(imageDirectory.glob("**/*")) if p.suffix in ImageFromDirectory.imageExtensions]
 
         return imagePathsList
 
@@ -110,7 +114,7 @@ class ImageFromDirectory(Dataset):
         bottom = top + randomSize
         image = image.crop((left, top, right, bottom))
         image = ImageOps.autocontrast(image, 0.01) # auto contrast, 0.01% cut-off
-        image = image.filter(ImageFilter.UnsharpMask(radius = 0.5, percent = 400, threshold = 0)) # unsharp mask
+        image = image.filter(ImageFilter.UnsharpMask(radius=0.5, percent=400, threshold=0)) # unsharp mask
         image = image.resize((384, 384), Image.BICUBIC) # resize
         h, s, v = image.convert("HSV").split()
         randomValue = random.randint(-16, 16)
@@ -119,13 +123,14 @@ class ImageFromDirectory(Dataset):
         randomValue = random.randint(0, 1)
         if randomValue == 0:
             image = ImageOps.mirror(image)
-
         return image
 
     def _downsampleAndDeteriorate(self, image):
         image = image.resize((96, 96), Image.BICUBIC)
         randomRadius = random.random()
         image = image.filter(ImageFilter.GaussianBlur(randomRadius))
+        randomStrength = random.randrange(0, 12)
+        image = image.point(lambda x: (x + np.random.normal(loc=0.0, scale=randomStrength, size=None))) # add Gaussian noise
         q = random.randint(noiseLevel, 100)
         imageFile = BytesIO()
         image.save(imageFile, 'webp', quality=q)
@@ -169,10 +174,9 @@ class Model(torch.nn.Module):
         super().__init__() # 親クラスである torch.nn.Module の __init__ を継承する。
         # weightの初期化はKaiming Heの初期化で自動的に成される。
 
-        nChannels = 256
-        channelRatio = 1
-        self.nResidualBlocks1 = 8
-        self.nResidualBlocks2 = 16
+        nChannels = 320 #320 # 4の倍数でなければならない。
+        self.nResidualBlocks1 = 8 #8
+        self.nResidualBlocks2 = 16 #16
         index = 0
         layersList = []
 
@@ -190,28 +194,28 @@ class Model(torch.nn.Module):
         for j in range(self.nResidualBlocks2):
             for i in range(self.nResidualBlocks1):
                 layersList.append(
-                    torch.nn.Conv2d(in_channels=nChannels * 1, out_channels=nChannels * channelRatio, kernel_size=(3, 3), stride=1, padding=1, dilation=1, groups=1, bias=True, padding_mode='replicate'))
+                    torch.nn.Conv2d(in_channels=nChannels, out_channels=nChannels, kernel_size=(3, 3), stride=1, padding=1, dilation=1, groups=1, bias=True, padding_mode='replicate'))
 
                 layersList.append(Swish())
 
                 layersList.append(
-                    torch.nn.Conv2d(in_channels=nChannels * channelRatio, out_channels=nChannels * 1, kernel_size=(3, 3), stride=1, padding=1, dilation=1, groups=1, bias=True, padding_mode='replicate'))
+                    torch.nn.Conv2d(in_channels=nChannels, out_channels=nChannels, kernel_size=(3, 3), stride=1, padding=1, dilation=1, groups=1, bias=True, padding_mode='replicate'))
 
                 layersList.append(Swish())
 
             layersList.append(
-                torch.nn.Conv2d(in_channels=nChannels * 1, out_channels=nChannels, kernel_size=(3, 3), stride=1, padding=1, dilation=1, groups=1, bias=True, padding_mode='replicate'))
+                torch.nn.Conv2d(in_channels=nChannels, out_channels=nChannels, kernel_size=(3, 3), stride=1, padding=1, dilation=1, groups=1, bias=True, padding_mode='replicate'))
 
             layersList.append(Swish())
 
         layersList.append(
-            torch.nn.Conv2d(in_channels=nChannels * 1, out_channels=nChannels, kernel_size=(3, 3), stride=1, padding=1, dilation=1, groups=1, bias=True, padding_mode='replicate'))
+            torch.nn.Conv2d(in_channels=nChannels, out_channels=nChannels, kernel_size=(3, 3), stride=1, padding=1, dilation=1, groups=1, bias=True, padding_mode='replicate'))
 
         layersList.append(Swish())
         # Residual Blocks end
 
         layersList.append(
-            torch.nn.Conv2d(in_channels=nChannels * 1, out_channels=256, kernel_size=(3, 3), stride=1, padding=1, dilation=1, groups=1, bias=True, padding_mode='replicate'))
+            torch.nn.Conv2d(in_channels=nChannels, out_channels=256, kernel_size=(3, 3), stride=1, padding=1, dilation=1, groups=1, bias=True, padding_mode='replicate'))
 
         layersList.append(
             torch.nn.PixelShuffle(upscale_factor=2))
@@ -337,7 +341,7 @@ def train():
     for epoch in range(0, nEpoch):
 
         epochTime = time.time()
-        totalSSIMRGBLoss, step = 0, 0
+        totalSSIMLoss, step = 0, 0
 
         datasetTrain.updateDataList() # データセットのリストを更新する。
 
@@ -355,22 +359,22 @@ def train():
             model.train() # training モードに設定する。
             miniBatchGenerated = model(miniBatchLR) # 画像データをモデルに入力する。
             del miniBatchLR
-            ssimRGBLoss = torch.pow(1 - ssimLossFunction(miniBatchGenerated, miniBatchHR), 2) # 生成画像と正解画像との間の損失を計算させる。
+            ssimLoss = ssimLossFunction(miniBatchGenerated, miniBatchHR) # 生成画像と正解画像との間の損失を計算させる。
             del miniBatchHR
             del miniBatchGenerated
             optimizer.zero_grad() # 勾配を初期化する。
-            ssimRGBLoss.backward() # 誤差逆伝播により勾配を計算させる。
+            ssimLoss.backward() # 誤差逆伝播により勾配を計算させる。
             optimizer.step() # パラメーターを更新させる。
 
-            totalSSIMRGBLoss += float(ssimRGBLoss)
-            print("Epoch: {:2d} Step: {:4d} Time: {:4.2f} SSIM_RGB_Loss: {:.8f}".format(
-                  epoch, step, time.time() - stepTime, ssimRGBLoss)) # SSIM損失値を表示させる。
-            del ssimRGBLoss
+            totalSSIMLoss += float(ssimLoss)
+            print("Epoch: {:2d} Step: {:4d} Time: {:4.2f} SSIM Loss: {:.8f}".format(
+                  epoch, step, time.time() - stepTime, ssimLoss)) # SSIM損失値を表示させる。
+            del ssimLoss
 
             step += 1
 
             # Validationを実行する。
-            if i % 2000 == 0:
+            if i % nIterationOfStepToSave == 0:
                 model.eval() # evaluation モードに設定する。
                 with torch.no_grad(): # 以下のスコープ内では勾配計算をさせない。
                     j = 0
@@ -408,6 +412,7 @@ def evaluate():
         model.load_state_dict(torch.load(checkpointPath + "model.pth", map_location=torch.device('cpu')))
     model = model.to(device)
 
+    #summary(model,(3,96,96))
 
     # 入力画像の Dataset を作成する。
     datasetEvaluation = ImageFromDirectory(evaluationImagePath, "evaluation")
