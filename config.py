@@ -16,17 +16,20 @@ config.samplesPath = config.homePath + '/SRNet-DR/samples/'
 config.saveFileFormat = '.png'
 
 # Batch
-config.miniBatchSize = 2
+config.miniBatchSize = 1
 
 # Adam
 config.learningRate = 2e-5
 
 # Training
-config.nEpoch = 100
+config.nEpoch = 800
+
+# Number of Iterations of the Step to Save
+config.nIterationOfStepToSave = 4000
 
 # Noise Reduction
 # WebP compression level; 1 to 100 (smaller value adds more noise)
-config.noiseLevel = 10
+config.noiseLevel = 5
 
 # Validation Set Location
 config.validationHRImagePath = config.homePath + '/SRNet-DR/HRImage-Validation/'
