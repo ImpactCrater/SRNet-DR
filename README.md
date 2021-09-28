@@ -3,7 +3,7 @@
 - **Using "Group Normalization" layers instead of "Batch Normalization" layers.**
 - **Using "Residual of Residual Network".**
 - **Using "Swish" activation function instead of "ReLU".**
-- **Using log(1+(a*(1-SSIM))^2) loss.**
+- **Using log(1+(a\*(1-SSIM))^2) loss.**
 - **Image data augmentation with random size cropping at random position, and random hue rotation.**
 - **Auto-contrast and unsharp mask filter is applied to the training images.**
 - **Added RGB noise removal capability by learning Gaussian noise.**
