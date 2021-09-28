@@ -3,22 +3,23 @@
 - **Using "Group Normalization" layers instead of "Batch Normalization" layers.**
 - **Using "Residual of Residual Network".**
 - **Using "Swish" activation function instead of "ReLU".**
-- **Using (1-SSIM)^2 loss.**
+- **Using log(1+(a*(1-SSIM))^2) loss.**
 - **Image data augmentation with random size cropping at random position, and random hue rotation.**
 - **Auto-contrast and unsharp mask filter is applied to the training images.**
+- **Added RGB noise removal capability by learning Gaussian noise.**
 - **Added compression noise removal capability by learning WebP image compression noise.**
 - **You can read/write PNG/WebP/BMP/JPEG/TIFF files.**
-- **This project contains "[pytorch-ssim](https://github.com/Po-Hsun-Su/pytorch-ssim)" licensed under the MIT License.**
+- **This project contains modified version of "[pytorch-ssim](https://github.com/Po-Hsun-Su/pytorch-ssim)" licensed under the MIT License.**
 - **"class SwishFunction" is based on a part of the code in "https://github.com/ceshine/EfficientNet-PyTorch". It is licensed under the Apache License.**
 
 ### Required Memory
 - **For training with CPU: 24GB+ RAM**
-- **For training with GPU: 16GB+ VRAM**
+- **For training with GPU: 18GB+ VRAM**
 - **For enlargement: 4GB+ RAM**
 
 ## Preparation
 
-We run this script under [PyTorch](https://pytorch.org/) 1.6 or later.
+We run this script under [PyTorch](https://pytorch.org/) 1.8 or later.
 
 1. Install PyTorch.
 
