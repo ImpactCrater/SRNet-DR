@@ -43,17 +43,17 @@ sudo python3 -m pip install -U --force-reinstall pillow-simd
 ### My Results
 
 <div align="center">
-	<img src="img/SRNet-D_Comparison_1_label_1.png"/>
+	<img src="img/SRNet-DR-Comparison-1-label-1.png"/>
 </div>
 </a>
 
 <div align="center">
-	<img src="img/SRNet-D_Comparison_2_label_1.png"/>
+	<img src="img/SRNet-DR-Comparison-2-label-1.png"/>
 </div>
 </a>
 
 <div align="center">
-	<img src="img/SRNet-D_Comparison_3_label_1.png"/>
+	<img src="img/SRNet-DR-Comparison-3-label-1.png"/>
 </div>
 </a>
 Original image is from iStock.
