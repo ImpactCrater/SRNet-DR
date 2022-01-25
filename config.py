@@ -37,4 +37,4 @@ config.validationHRImagePath = config.homePath + '/SRNet-DR/HRImage-Validation/'
 config.trainingHRImagePath = config.homePath + '/SRNet-DR/HRImage-Training/'
 
 # Enlargement Set Location
-config.enlargementLRImagePath = config.homePath + '/SRNet-DR/LRImage-Enlargement/'
+config.lRImagePath = config.homePath + '/SRNet-DR/LRImage-SR/'
