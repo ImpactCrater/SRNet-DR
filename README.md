@@ -2,24 +2,23 @@
 - **Written in PyTorch.**
 - **Using "Group Normalization" layers instead of "Batch Normalization" layers.**
 - **Using "Residual of Residual Network".**
-- **Using "Swish" activation function instead of "ReLU".**
-- **Using log(1+(a\*(1-SSIM))^2) loss.**
-- **Image data augmentation with random size cropping at random position, and random hue rotation.**
+- **Using "TanhExp" activation function instead of "ReLU".**
+- **Using ((1-SSIM)*a)^2 loss.**
+- **Image data augmentation with random size cropping at random position, random resizing and random hue rotation.**
 - **Auto-contrast and unsharp mask filter is applied to the training images.**
-- **Added RGB noise removal capability by learning Gaussian noise.**
-- **Added compression noise removal capability by learning WebP image compression noise.**
+- **Added RGB noise removal capability by learning Gaussian noise at random strength.**
+- **Added compression noise removal capability by learning WebP image compression noise at random strength.**
 - **You can read/write PNG/WebP/BMP/JPEG/TIFF files.**
 - **This project contains modified version of "[pytorch-ssim](https://github.com/Po-Hsun-Su/pytorch-ssim)" licensed under the MIT License.**
-- **"class SwishFunction" is based on a part of the code in "https://github.com/ceshine/EfficientNet-PyTorch". It is licensed under the Apache License.**
 
 ### Required Memory
-- **For training with CPU: 24GB+ RAM**
-- **For training with GPU: 18GB+ VRAM**
-- **For enlargement: 4GB+ RAM**
+- **For training with CPU: 32GB+ RAM**
+- **For training with GPU: 32GB+ VRAM**
+- **For enlargement: 8GB+ RAM**
 
 ## Preparation
 
-We run this script under [PyTorch](https://pytorch.org/) 1.8 or later.
+We run this script under [PyTorch](https://pytorch.org/) 1.10 or later.
 
 1. Install PyTorch.
 
@@ -36,8 +35,7 @@ cd ./libwebp-1.0.2
 ./configure
 make
 sudo make install
-sudo python3 -m pip uninstall pillow
-sudo python3 -m pip install -U --force-reinstall pillow-simd
+sudo python3 -m pip install pillow
 ```
 
 ### My Results
@@ -72,16 +70,6 @@ Original image is from iStock.
 ```bash
 python3 main.py
 ```
-
-#### Start evaluation.
- - After training, if you want to test the model, You need to put images in the specified folder.
-   -  You can set the path to your test images folder via `config.VALID.evaluationImagePath` in `config.py`.
-  
-
-```bash
-python main.py --mode=evaluate 
-```
-
 #### Start enlargement.
  - After training, if you want to enlarge your images, You need to put images in the specified folder.
    -  You can set the path to your images folder via `config.VALID.enlargementLRImagePath` in `config.py`.
