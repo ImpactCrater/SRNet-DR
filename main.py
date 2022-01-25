@@ -40,7 +40,7 @@ samplesPath = config.samplesPath
 checkpointPath = config.checkpointPath
 validationHRImagePath = config.validationHRImagePath
 trainingHRImagePath = config.trainingHRImagePath
-enlargementLRImagePath = config.enlargementLRImagePath
+lRImagePath = config.lRImagePath
 
 
 
@@ -76,7 +76,7 @@ class ImageFromDirectory(Dataset):
 
             return imageHR, imageLR
 
-        elif self.mode == "enlargement":
+        elif self.mode == "sr":
             imageLR = transformToTensor(image)
 
             return imageLR
@@ -92,10 +92,6 @@ class ImageFromDirectory(Dataset):
             p for p in sorted(imageDirectory.glob("**/*")) if p.suffix in ImageFromDirectory.imageExtensions]
 
         return imagePathsList
-
-    def _enlarge(self, image):
-        image = image.resize((image.width * 4, image.height * 4), Image.BICUBIC) # resize
-        return image
 
     def _preprocess(self, image):
         # Data augmentation
@@ -418,7 +414,7 @@ def train():
 
 
 
-def enlarge():
+def sr():
     print("Now processing...")
 
     # GPUが利用可能ならGPUを利用する。
@@ -437,19 +433,19 @@ def enlarge():
 
 
     # 入力画像の Dataset を作成する。
-    datasetEnlargement = ImageFromDirectory(enlargementLRImagePath, "enlargement")
+    datasetSR = ImageFromDirectory(lRImagePath, "sr")
 
     # 入力画像の DataLoader を作成する。
-    dataloaderEnlargement = DataLoader(datasetEnlargement, batch_size=1, pin_memory=True, shuffle=False, num_workers=0, drop_last=False)
+    dataloaderSR = DataLoader(datasetSR, batch_size=1, pin_memory=True, shuffle=False, num_workers=0, drop_last=False)
 
-    saveDirectoryGenerated = samplesPath + "enlarged"
+    saveDirectoryGenerated = samplesPath + "sr"
 
-    nImagesEnlargement = len(datasetEnlargement)
-    nStep = math.floor(nImagesEnlargement / miniBatchSize)
-    print("Number of Images: {}".format(nImagesEnlargement))
+    nImagesSR = len(datasetSR)
+    nStep = math.floor(nImagesSR / miniBatchSize)
+    print("Number of Images: {}".format(nImagesSR))
 
     i = 0
-    for miniBatchLR in dataloaderEnlargement:
+    for miniBatchLR in dataloaderSR:
         model.eval() # evaluation モードに設定する。
         with torch.no_grad(): # 以下のスコープ内では勾配計算をさせない。
             stepTime = time.time()
@@ -470,7 +466,7 @@ if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser()
 
-    parser.add_argument('--mode', type=str, default='train', help='train, enlarge')
+    parser.add_argument('--mode', type=str, default='train', help='train, sr')
 
     args = parser.parse_args()
 
@@ -478,7 +474,7 @@ if __name__ == '__main__':
 
     if mode == 'train':
         train()
-    elif mode == 'enlarge':
-        enlarge()
+    elif mode == 'sr':
+        sr()
     else:
         raise Exception("Unknow --mode")
