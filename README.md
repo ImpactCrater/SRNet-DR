@@ -70,13 +70,13 @@ Original image is from iStock.
 ```bash
 python3 main.py
 ```
-#### Start enlargement.
- - After training, if you want to enlarge your images, You need to put images in the specified folder.
-   -  You can set the path to your images folder via `config.VALID.enlargementLRImagePath` in `config.py`.
+#### Start super-resolution.
+ - After training, if you want to SR your images, You need to put images in the specified folder.
+   -  You can set the path to your images folder via `config.VALID.lRImagePath` in `config.py`.
   
 
 ```bash
-python main.py --mode=enlarge 
+python main.py --mode=sr 
 ```
 
 ### License
