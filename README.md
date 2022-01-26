@@ -3,6 +3,7 @@
 - **Using "Group Normalization" layers instead of "Batch Normalization" layers.**
 - **Using "Residual of Residual Network".**
 - **Using "TanhExp" activation function instead of "ReLU".**
+- **Using "PixelUnshuffle" layer for downscaling.**
 - **Using ((1-SSIM)\*a)^2 loss.**
 - **Image data augmentation with random size cropping at random position, random resizing and random hue rotation.**
 - **Auto-contrast and unsharp mask filter is applied to the training images.**
