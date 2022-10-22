@@ -4,7 +4,7 @@
 - **Using "Residual of Residual Network".**
 - **Using "TanhExp" activation function instead of "ReLU".**
 - **Using "PixelUnshuffle" layer for downscaling.**
-- **Using ((1-SSIM)\*a)^2 loss.**
+- **Using (sqrt(1+((1-SSIM)\*a)^2)-1)/a loss.**
 - **Image data augmentation with random size cropping at random position, random resizing and random hue rotation.**
 - **Auto-contrast and unsharp mask filter is applied to the training images.**
 - **Added RGB noise removal capability by learning Gaussian noise at random strength.**
@@ -19,7 +19,7 @@
 
 ## Preparation
 
-We run this script under [PyTorch](https://pytorch.org/) 1.10 or later.
+We run this script under [PyTorch](https://pytorch.org/) 1.12 or later.
 
 1. Install PyTorch.
 
