@@ -32,7 +32,7 @@ def _ssim(img1, img2, window, window_size, channel, size_average = True):
     ssim_map = ((2*mu1_mu2 + C1)*(2*sigma12 + C2))/((mu1_sq + mu2_sq + C1)*(sigma1_sq + sigma2_sq + C2))
 
     if size_average:
-        return torch.pow((1 - ssim_map) * 16, 2).mean()
+        return ((torch.sqrt(1 + torch.pow((1 - ssim_map) * 64, 2)) - 1) / 64).mean()
 
     else:
         return ssim_map.mean(1).mean(1).mean(1)
