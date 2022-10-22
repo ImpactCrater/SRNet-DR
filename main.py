@@ -77,7 +77,19 @@ class ImageFromDirectory(Dataset):
             return imageHR, imageLR
 
         elif self.mode == "sr":
-            imageLR = transformToTensor(image)
+            if image.width % 4 == 0:
+                newWidth = image.width
+            else:
+                newWidth = 4 * (image.width // 4 + 1)
+
+            if image.height % 4 == 0:
+                newHeight = image.height
+            else:
+                newHeight = 4 * (image.height // 4 + 1)
+
+            newImage = Image.new(image.mode, (newWidth, newHeight), (0,0,0))
+            newImage.paste(image, (0, 0))
+            imageLR = transformToTensor(newImage)
 
             return imageLR
 
@@ -120,13 +132,24 @@ class ImageFromDirectory(Dataset):
         imageLR = imageLR.resize((randomSize, randomSize), Image.BICUBIC)
         randomRadius = random.uniform(0.0, 1.0)
         imageLR = imageLR.filter(ImageFilter.GaussianBlur(randomRadius))
-        randomStrength = random.uniform(0.0, 4.0)
-        imageLR = imageLR.point(lambda x: (x + np.random.normal(loc=0.0, scale=randomStrength, size=None))) # add Gaussian noise
+
+        randomStrength = random.uniform(0.0, 0.1)
+        width, height = imageLR.size
+        r, g, b = imageLR.split()
+        noiseImage = Image.effect_noise((width, height), 255) # Generate Gaussian noise
+        r = Image.blend(r, noiseImage, randomStrength)
+        noiseImage = Image.effect_noise((width, height), 255)
+        g = Image.blend(g, noiseImage, randomStrength)
+        noiseImage = Image.effect_noise((width, height), 255)
+        b = Image.blend(b, noiseImage, randomStrength)
+        imageLR = Image.merge("RGB", (r, g, b))
+
         randomQuality = random.randint(5, 100)
         imageFile = BytesIO()
         imageLR.save(imageFile, 'webp', quality=randomQuality)
         imageLR = Image.open(imageFile)
         imageLR = imageLR.resize((388, 388), Image.BICUBIC)
+
         left = random.randint(0, 3)
         top = random.randint(0, 3)
         right = left + 384
@@ -195,7 +218,7 @@ class Model(torch.nn.Module):
             torch.nn.Conv2d(in_channels=3 * 4 * 4, out_channels=nChannels1, kernel_size=(3, 3), stride=1, padding=1, dilation=1, groups=1, bias=False, padding_mode='replicate'))
 
         layersList.append(
-            torch.nn.GroupNorm(num_groups=int(nChannels1 / 16), num_channels=nChannels1, eps=1e-05, affine=True))
+            torch.nn.GroupNorm(num_groups=int(nChannels1 / 24), num_channels=nChannels1, eps=1e-05, affine=True))
 
         layersList.append(TanhExp())
 
