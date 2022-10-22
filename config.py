@@ -19,10 +19,10 @@ config.saveFileFormat = '.png'
 config.miniBatchSize = 1
 
 # Learning Rate of RAdam
-config.learningRate = 5e-6
+config.learningRate = 5e-6 # モデルのパラメーター数が多いほど、またデータ数が多いほど、小さな学習率にする。
 
 # Weight Decay of RAdam
-config.weightDecay = 1e-5
+config.weightDecay = 1e-6
 
 # Training
 config.nEpoch = 800
@@ -36,5 +36,5 @@ config.validationHRImagePath = config.homePath + '/SRNet-DR/HRImage-Validation/'
 # Train Set Location
 config.trainingHRImagePath = config.homePath + '/SRNet-DR/HRImage-Training/'
 
-# Enlargement Set Location
+# Super-Resolution Set Location
 config.lRImagePath = config.homePath + '/SRNet-DR/LRImage-SR/'
