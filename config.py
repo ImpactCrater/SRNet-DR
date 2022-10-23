@@ -19,7 +19,7 @@ config.saveFileFormat = '.png'
 config.miniBatchSize = 1
 
 # Learning Rate of RAdam
-config.learningRate = 5e-6 # モデルのパラメーター数が多いほど、またデータ数が多いほど、小さな学習率にする。
+config.learningRate = 2e-6 # モデルのパラメーター数が多いほど、またデータ数が多いほど、小さな学習率にする。
 
 # Weight Decay of RAdam
 config.weightDecay = 1e-6
