@@ -133,7 +133,7 @@ class ImageFromDirectory(Dataset):
         randomRadius = random.uniform(0.0, 1.0)
         imageLR = imageLR.filter(ImageFilter.GaussianBlur(randomRadius))
 
-        randomStrength = random.uniform(0.0, 0.1)
+        randomStrength = random.uniform(0.0, 0.075)
         width, height = imageLR.size
         r, g, b = imageLR.split()
         noiseImage = Image.effect_noise((width, height), 255) # Generate Gaussian noise
