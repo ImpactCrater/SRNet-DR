@@ -22,7 +22,7 @@ config.miniBatchSize = 1
 config.learningRate = 2e-6 # モデルのパラメーター数が多いほど、またデータ数が多いほど、小さな学習率にする。
 
 # Weight Decay of RAdam
-config.weightDecay = 1e-6
+config.weightDecay = 1e-9
 
 # Training
 config.nEpoch = 800
