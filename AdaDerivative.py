@@ -45,25 +45,7 @@ class AdaDerivative(Optimizer):
 
     def __init__(self, params, lr=1e-3, betas=(0.9, 0.999), eps=1e-16,
                  weight_decay=0, amsgrad=False, weight_decouple=True, fixed_decay=False, rectify=True,
-                 degenerated_to_sgd=True, print_change_log = True):
-
-        # ------------------------------------------------------------------------------
-        # Print modifications to default arguments
-        if print_change_log:
-            print(Fore.RED + 'Modifications to default arguments:')
-            default_table = tabulate([
-                ['AdaDerivative','1e-16','True','True']],
-                headers=['eps','weight_decouple','rectify'])
-            print(Fore.RED + default_table)
-
-            recommend_table = tabulate([
-                ['Recommended eps = 1e-8', 'Recommended eps = 1e-16'],
-                ],
-                headers=['SGD better than Adam (e.g. CNN for Image Classification)','Adam better than SGD (e.g. Transformer, GAN)'])
-            print(Fore.BLUE + recommend_table)
-
-            print(Style.RESET_ALL)
-        # ------------------------------------------------------------------------------
+                 degenerated_to_sgd=True):
 
         if not 0.0 <= lr:
             raise ValueError("Invalid learning rate: {}".format(lr))
@@ -247,4 +229,3 @@ class AdaDerivative(Optimizer):
                     p.grad = p.grad.half() 
 
         return loss
-      
