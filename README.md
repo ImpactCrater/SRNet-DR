@@ -25,9 +25,9 @@ We run this script under [PyTorch](https://pytorch.org/) 2.1.1 or later.
 1. Follow the instructions below to install other requirements.
 ```bash
 cd ~/
-sudo pip install --upgrade pip
+pip install --upgrade pip
 git clone https://github.com/ImpactCrater/SRNet-DR
-sudo python3 -m pip install easydict
+pip install easydict
 wget https://github.com/webmproject/libwebp/archive/v1.0.2.zip
 unzip v1.0.2.zip
 cd ./libwebp-1.0.2
@@ -35,7 +35,7 @@ cd ./libwebp-1.0.2
 ./configure
 make
 sudo make install
-sudo python3 -m pip install pillow
+pip install pillow
 ```
 
 ### My Results
