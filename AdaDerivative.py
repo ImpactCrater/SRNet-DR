@@ -93,20 +93,20 @@ class AdaDerivative(Optimizer):
                 # State initialization
                 state['step'] = 0
                 # Exponential moving average of gradient values
-                state['exp_avg'] = torch.zeros_like(p.data,memory_format=torch.preserve_format) \
+                state['exp_avg'] = torch.zeros_like(p.data, memory_format=torch.preserve_format) \
                     if version_higher else torch.zeros_like(p.data)
 
                 # Exponential moving average of squared gradient values
-                state['exp_avg_var'] = torch.zeros_like(p.data,memory_format=torch.preserve_format) \
+                state['exp_avg_var'] = torch.zeros_like(p.data, memory_format=torch.preserve_format) \
                     if version_higher else torch.zeros_like(p.data)
 
                 # Gradient values
-                state['gradOld'] = torch.zeros_like(p.data,memory_format=torch.preserve_format) \
+                state['gradOld'] = torch.zeros_like(p.data, memory_format=torch.preserve_format) \
                     if version_higher else torch.zeros_like(p.data)
 
                 if amsgrad:
                     # Maintains max of all exp. moving avg. of sq. grad. values
-                    state['max_exp_avg_var'] = torch.zeros_like(p.data,memory_format=torch.preserve_format) \
+                    state['max_exp_avg_var'] = torch.zeros_like(p.data, memory_format=torch.preserve_format) \
                         if version_higher else torch.zeros_like(p.data)
 
     def step(self, closure=None):
@@ -170,6 +170,7 @@ class AdaDerivative(Optimizer):
 
                 # get current state variable
                 exp_avg, exp_avg_var, gradOld = state['exp_avg'], state['exp_avg_var'], state['gradOld']
+                #print("old: {}".format(state['gradOld']))
 
                 state['step'] += 1
                 bias_correction1 = 1 - beta1 ** state['step']
@@ -178,7 +179,9 @@ class AdaDerivative(Optimizer):
                 # Update first and second moment running average
                 exp_avg.mul_(beta1).add_(grad, alpha=1 - beta1)
                 gradDiff = grad - gradOld
-                exp_avg_var.mul_(beta2).addcmul_( gradDiff, gradDiff, value=1 - beta2)
+                exp_avg_var.mul_(beta2).addcmul_(gradDiff, gradDiff, value=1 - beta2)
+                state['gradOld'] = grad
+                #print("new: {}".format(state['gradOld']))
 
                 if amsgrad:
                     max_exp_avg_var = state['max_exp_avg_var']
