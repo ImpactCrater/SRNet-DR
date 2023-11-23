@@ -4,17 +4,16 @@
 - **Using "Residual of Residual Network".**
 - **Using "TanhExp" activation function instead of "ReLU".**
 - **Using "PixelUnshuffle" layer for downscaling.**
-- **Using (sqrt(1+((1-SSIM)\*a)^2)-1)/a loss.**
+- **Using (sqrt(1+((1-x)\*a)^2)-1)/a loss. Where x is second-order differentiated maps and SSIM map.**
 - **Image data augmentation with random size cropping at random position, random resizing and random hue rotation.**
 - **Auto-contrast and unsharp mask filter is applied to the training images.**
 - **Added RGB noise removal capability by learning Gaussian noise at random strength.**
 - **Added compression noise removal capability by learning WebP image compression noise at random strength.**
 - **You can read/write PNG/WebP/BMP/JPEG/TIFF files.**
-- **This project contains modified version of "[pytorch-ssim](https://github.com/Po-Hsun-Su/pytorch-ssim)" licensed under the MIT License.**
 
 ### Required Memory
-- **For training with CPU: 32GB+ RAM**
-- **For training with GPU: 32GB+ VRAM**
+- **For training with CPU: 48GB+ RAM**
+- **For training with GPU with CPU Offloading: 12GB+ VRAM**
 - **For enlargement: 8GB+ RAM**
 
 ## Preparation
