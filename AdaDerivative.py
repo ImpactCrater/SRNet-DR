@@ -1,8 +1,6 @@
 import math
 import torch
 from torch.optim.optimizer import Optimizer
-from tabulate import tabulate
-from colorama import Fore, Back, Style
 
 r"""
 This script is modified from adaBelief optimizer script, which is copyrighted by Juntang Zhuang(https://github.com/juntang-zhuang/Adabelief-Optimizer/tree/update_0.2.0)
@@ -43,8 +41,6 @@ class AdaDerivative(Optimizer):
             update similar to RAdam
         degenerated_to_sgd (boolean, optional) (default:True) If set as True, then perform SGD update
             when variance of gradient is high
-        print_change_log (boolean, optional) (default: True) If set as True, print the modifcation to
-            default hyper-parameters
     """
 
     def __init__(self, params, lr=1e-3, betas=(0.9, 0.999), eps=1e-16,
