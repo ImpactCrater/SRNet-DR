@@ -18,7 +18,7 @@
 
 ## Preparation
 
-We run this script under [PyTorch](https://pytorch.org/) 1.12 or later.
+We run this script under [PyTorch](https://pytorch.org/) 2.1.1 or later.
 
 1. Install PyTorch.
 
