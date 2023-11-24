@@ -6,6 +6,8 @@ r"""
 This script is a partially modified version of the one copyrighted by Juntang Zhuang(https://github.com/juntang-zhuang/Adabelief-Optimizer/tree/update_0.2.0)
 """
 
+version_higher = (torch.__version__ >= "1.5.0")
+
 class AdaBelief(Optimizer):
     r"""Implements AdaBelief algorithm. Modified from Adam in PyTorch
     Arguments:
