@@ -15,7 +15,7 @@ from torch.utils.data import DataLoader, Dataset
 from torchvision import transforms, utils
 from torch.distributed.fsdp import FullyShardedDataParallel
 from torch.distributed.fsdp.fully_sharded_data_parallel import CPUOffload
-import AdaDerivative
+import AdaBelief
 import cv2
 import model
 
@@ -401,8 +401,7 @@ def train():
     modelOfGenerator = FullyShardedDataParallel(modelOfGenerator, cpu_offload=CPUOffload(offload_params=True))
 
     # オプティマイザーを作成する。
-    optimizerOfGenerator = AdaDerivative.AdaDerivative(modelOfGenerator.parameters(), lr=learningRate, weight_decay=weightDecay)
-    #optimizerOfGenerator = Lion(modelOfGenerator.parameters(), lr=learningRate, weight_decay=weightDecay)
+    optimizerOfGenerator = AdaBelief.AdaBelief(modelOfGenerator.parameters(), lr=learningRate, weight_decay=weightDecay, rectify=False)
 
     # 損失関数のインスタンスを作成する。
     generatorLossFunction = GeneratorLossFunction() # torch.nn.Moduleを継承している。
