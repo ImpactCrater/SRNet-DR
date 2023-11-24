@@ -25,8 +25,8 @@ SOFTWARE.
 
 
 
-"AdaDerivative.py" script is partially modified by ImpactCrater from AdaBelief Optimizer script, 
-which is copyrighted by Juntang Zhuang
+"AdaBelief.py" script included in this repository is copyrighted
+by Juntang Zhuang, but is a partially modified version by me.
 (https://github.com/juntang-zhuang/Adabelief-Optimizer/tree/update_0.2.0)
 
 Adabelief-Optimizer License
