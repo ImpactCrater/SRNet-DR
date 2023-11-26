@@ -3,7 +3,7 @@ import torch
 from torch.optim.optimizer import Optimizer
 
 r"""
-This script is a partially modified version of the one copyrighted by Juntang Zhuang(https://github.com/juntang-zhuang/Adabelief-Optimizer/tree/update_0.2.0)
+This script is a modification of one copyrighted by Juntang Zhuang(https://github.com/juntang-zhuang/Adabelief-Optimizer/tree/update_0.2.0)
 """
 
 version_higher = (torch.__version__ >= "1.5.0")
@@ -19,9 +19,6 @@ class AdaBelief(Optimizer):
         eps (float, optional): term added to the denominator to improve
             numerical stability (default: 1e-16)
         weight_decay (float, optional): weight decay (L2 penalty) (default: 0)
-        amsgrad (boolean, optional): whether to use the AMSGrad variant of this
-            algorithm from the paper `On the Convergence of Adam and Beyond`_
-            (default: False)
         weight_decouple (boolean, optional): ( default: True) If set as True, then
             the optimizer uses decoupled weight decay as in AdamW
         fixed_decay (boolean, optional): (default: False) This is used when weight_decouple
@@ -39,7 +36,7 @@ class AdaBelief(Optimizer):
     """
 
     def __init__(self, params, lr=1e-3, betas=(0.9, 0.999), eps=1e-16,
-                 weight_decay=0, amsgrad=False, weight_decouple=True, fixed_decay=False, rectify=True,
+                 weight_decay=0, weight_decouple=True, fixed_decay=False, rectify=True,
                  degenerated_to_sgd=True):
 
         if not 0.0 <= lr:
@@ -58,7 +55,7 @@ class AdaBelief(Optimizer):
                     param['buffer'] = [[None, None, None] for _ in range(10)]
 
         defaults = dict(lr=lr, betas=betas, eps=eps,
-                        weight_decay=weight_decay, amsgrad=amsgrad, buffer=[[None, None, None] for _ in range(10)])
+                        weight_decay=weight_decay, buffer=[[None, None, None] for _ in range(10)])
         super(AdaBelief, self).__init__(params, defaults)
 
         self.degenerated_to_sgd = degenerated_to_sgd
@@ -71,34 +68,22 @@ class AdaBelief(Optimizer):
                 print('Weight decay fixed')
         if self.rectify:
             print('Rectification enabled in AdaBelief')
-        if amsgrad:
-            print('AMSGrad enabled in AdaBelief')
 
     def __setstate__(self, state):
         super(AdaBelief, self).__setstate__(state)
-        for group in self.param_groups:
-            group.setdefault('amsgrad', False)
 
     def reset(self):
         for group in self.param_groups:
             for p in group['params']:
                 state = self.state[p]
-                amsgrad = group['amsgrad']
 
                 # State initialization
                 state['step'] = 0
-                # Exponential moving average of gradient values
-                state['exp_avg'] = torch.zeros_like(p.data,memory_format=torch.preserve_format) \
+                state['ema'] = torch.zeros_like(p.data,memory_format=torch.preserve_format) \
+                    if version_higher else torch.zeros_like(p.data)
+                state['gradVariance'] = torch.zeros_like(p.data,memory_format=torch.preserve_format) \
                     if version_higher else torch.zeros_like(p.data)
 
-                # Exponential moving average of squared gradient values
-                state['exp_avg_var'] = torch.zeros_like(p.data,memory_format=torch.preserve_format) \
-                    if version_higher else torch.zeros_like(p.data)
-
-                if amsgrad:
-                    # Maintains max of all exp. moving avg. of sq. grad. values
-                    state['max_exp_avg_var'] = torch.zeros_like(p.data,memory_format=torch.preserve_format) \
-                        if version_higher else torch.zeros_like(p.data)
 
     def step(self, closure=None):
         """Performs a single optimization step.
@@ -126,7 +111,6 @@ class AdaBelief(Optimizer):
                 if grad.is_sparse:
                     raise RuntimeError(
                         'AdaBelief does not support sparse gradients, please consider SparseAdam instead')
-                amsgrad = group['amsgrad']
 
                 state = self.state[p]
 
@@ -135,17 +119,11 @@ class AdaBelief(Optimizer):
                 # State initialization
                 if len(state) == 0:
                     state['step'] = 0
-                    # Exponential moving average of gradient values
-                    state['exp_avg'] = torch.zeros_like(p.data,memory_format=torch.preserve_format) \
+                    state['ema'] = torch.zeros_like(p.data,memory_format=torch.preserve_format) \
                         if version_higher else torch.zeros_like(p.data)
-                    # Exponential moving average of squared gradient values
-                    state['exp_avg_var'] = torch.zeros_like(p.data,memory_format=torch.preserve_format) \
+                    state['gradVariance'] = torch.zeros_like(p.data,memory_format=torch.preserve_format) \
                         if version_higher else torch.zeros_like(p.data)
-                    if amsgrad:
-                        # Maintains max of all exp. moving avg. of sq. grad. values
-                        state['max_exp_avg_var'] = torch.zeros_like(p.data,memory_format=torch.preserve_format) \
-                            if version_higher else torch.zeros_like(p.data)
-                
+
                 # perform weight decay, check if decoupled weight decay
                 if self.weight_decouple:
                     if not self.fixed_decay:
@@ -157,32 +135,23 @@ class AdaBelief(Optimizer):
                         grad.add_(p.data, alpha=group['weight_decay'])
 
                 # get current state variable
-                exp_avg, exp_avg_var = state['exp_avg'], state['exp_avg_var']
+                ema, gradVariance = state['ema'], state['gradVariance']
 
                 state['step'] += 1
                 bias_correction1 = 1 - beta1 ** state['step']
                 bias_correction2 = 1 - beta2 ** state['step']
 
                 # Update first and second moment running average
-                exp_avg.mul_(beta1).add_(grad, alpha=1 - beta1)
-                grad_residual = grad - exp_avg
-                exp_avg_var.mul_(beta2).addcmul_( grad_residual, grad_residual, value=1 - beta2)
-
-                if amsgrad:
-                    max_exp_avg_var = state['max_exp_avg_var']
-                    # Maintains the maximum of all 2nd moment running avg. till now
-                    torch.max(max_exp_avg_var, exp_avg_var.add_(group['eps']), out=max_exp_avg_var)
-
-                    # Use the max. for normalizing running avg. of gradient
-                    denom = (max_exp_avg_var.sqrt() / math.sqrt(bias_correction2)).add_(group['eps'])
-                else:
-                    denom = (exp_avg_var.add_(group['eps']).sqrt() / math.sqrt(bias_correction2)).add_(group['eps'])
+                ema.mul_(beta1).add_(grad, alpha=1 - beta1)
+                gradDeviation = grad - ema
+                gradVariance.mul_(beta2).addcmul_(gradDeviation, gradDeviation, value=1 - beta2)
+                denom = (gradVariance.add_(group['eps']).sqrt() / math.sqrt(bias_correction2)).add_(group['eps'])
                 
                 # update
                 if not self.rectify:
                     # Default update
                     step_size = group['lr'] / bias_correction1
-                    p.data.addcdiv_( exp_avg, denom, value=-step_size)
+                    p.data.addcdiv_(ema, denom, value=-step_size)
 
                 else:  # Rectified update, forked from RAdam
                     buffered = group['buffer'][int(state['step'] % 10)]
@@ -207,14 +176,13 @@ class AdaBelief(Optimizer):
                         buffered[2] = step_size
 
                     if N_sma >= 5:
-                        denom = exp_avg_var.sqrt().add_(group['eps'])
-                        p.data.addcdiv_(exp_avg, denom, value=-step_size * group['lr'])
+                        denom = gradVariance.sqrt().add_(group['eps'])
+                        p.data.addcdiv_(ema, denom, value=-step_size * group['lr'])
                     elif step_size > 0:
-                        p.data.add_( exp_avg, alpha=-step_size * group['lr'])
+                        p.data.add_(ema, alpha=-step_size * group['lr'])
                 
                 if half_precision:
                     p.data = p.data.half()
                     p.grad = p.grad.half() 
 
         return loss
-
