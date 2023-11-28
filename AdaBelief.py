@@ -28,7 +28,7 @@ class AdaBelief(Optimizer):
             When fixed_decay == False, the weight decay is performed as
             $W_{new} = W_{old} - W_{old} \times decay \times lr$. Note that in this case, the
             weight decay ratio decreases with learning rate (lr).
-        rectify (boolean, optional): (default: True) If set as True, then perform the rectified
+        rectify (boolean, optional): (default: False) If set as True, then perform the rectified
             update similar to RAdam
         degenerated_to_sgd (boolean, optional) (default:True) If set as True, then perform SGD update
             when variance of gradient is high
@@ -36,7 +36,7 @@ class AdaBelief(Optimizer):
     """
 
     def __init__(self, params, lr=1e-3, betas=(0.9, 0.999), eps=1e-16,
-                 weight_decay=0, weight_decouple=True, fixed_decay=False, rectify=True,
+                 weight_decay=0, weight_decouple=True, fixed_decay=False, rectify=False,
                  degenerated_to_sgd=True):
 
         if not 0.0 <= lr:
@@ -146,7 +146,7 @@ class AdaBelief(Optimizer):
                 gradDeviation = grad - ema
                 gradVariance.mul_(beta2).addcmul_(gradDeviation, gradDeviation, value=1 - beta2)
                 denom = (gradVariance.add_(group['eps']).sqrt() / math.sqrt(bias_correction2)).add_(group['eps'])
-                
+
                 # update
                 if not self.rectify:
                     # Default update
