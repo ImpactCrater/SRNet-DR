@@ -15,7 +15,7 @@ from torch.utils.data import DataLoader, Dataset
 from torchvision import transforms, utils
 from torch.distributed.fsdp import FullyShardedDataParallel
 from torch.distributed.fsdp.fully_sharded_data_parallel import CPUOffload
-import AdaBelief
+import AdaFast
 import cv2
 import model
 
@@ -54,14 +54,14 @@ saveFileFormat = '.png'
 
 ## Hyper-Parameters
 
-# Batch
+# Mini Batch
 miniBatchSize = 1
 
 # Learning Rate
 learningRate = 1e-6 # 1e-6 # モデルのパラメーター数が多いほど、またデータ数が多いほど、小さな学習率にする。
 
 # Weight Decay
-weightDecay = 1e-8 # 1e-8
+weightDecay = 1e-16 # 1e-16
 
 # Training
 nEpoch = 800
@@ -262,8 +262,8 @@ class GeneratorLossFunction(torch.nn.Module):
             torch.backends.cudnn.benchmark=True
         else:
             device = "cpu"
-        # Kernel
 
+        # Kernel
         _, numberOfChannels, height, width = image1.size()
 
         kernel1 = torch.FloatTensor([[ 1,  0,  0], 
@@ -313,7 +313,16 @@ class GeneratorLossFunction(torch.nn.Module):
         featureSsimMap = self._calculateFeatureSsim(image1, image2)
         featureSsimLoss = ((torch.sqrt(1 + torch.pow((1 - featureSsimMap) * 1024, 2)) - 1) / 1024).mean()
 
-        return ssimLoss, featureSsimLoss
+        image1Small = torch.nn.functional.interpolate(image1, size=None, scale_factor=0.5, mode='bilinear')
+        image2Small = torch.nn.functional.interpolate(image2, size=None, scale_factor=0.5, mode='bilinear')
+
+        ssimMapSmall = self._calculateSsim(image1Small, image2Small)
+        ssimLossSmall = ((torch.sqrt(1 + torch.pow((1 - ssimMapSmall) * 1024, 2)) - 1) / 1024).mean()
+
+        featureSsimMapSmall = self._calculateFeatureSsim(image1Small, image2Small)
+        featureSsimLossSmall = ((torch.sqrt(1 + torch.pow((1 - featureSsimMapSmall) * 1024, 2)) - 1) / 1024).mean()
+
+        return ssimLoss + ssimLossSmall, featureSsimLoss + featureSsimLossSmall
 
 
 
@@ -401,7 +410,7 @@ def train():
     modelOfGenerator = FullyShardedDataParallel(modelOfGenerator, cpu_offload=CPUOffload(offload_params=True))
 
     # オプティマイザーを作成する。
-    optimizerOfGenerator = AdaBelief.AdaBelief(modelOfGenerator.parameters(), lr=learningRate, weight_decay=weightDecay, rectify=False)
+    optimizerOfGenerator = AdaFast.AdaFast(modelOfGenerator.parameters(), lr=learningRate, betas=(0.9, 0.999), weight_decay=weightDecay)
 
     # 損失関数のインスタンスを作成する。
     generatorLossFunction = GeneratorLossFunction() # torch.nn.Moduleを継承している。
