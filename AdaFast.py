@@ -142,9 +142,9 @@ class AdaFast(Optimizer):
                 gradVariance.mul_(beta2).addcmul_(gradDeviation, gradDeviation, value=1 - beta2)
                 denom = (gradVariance.add_(group['eps']).sqrt() / math.sqrt(bias_correction2)).add_(group['eps'])
                 momentum = ema * ((1 + torch.abs(ema)) ** 2)
+                step_size = group['lr'] / bias_correction1
 
                 # update
-                step_size = group['lr'] / bias_correction1
                 p.data.addcdiv_(momentum, denom, value=-step_size)
 
                 if half_precision:
