@@ -15,7 +15,7 @@ from torch.utils.data import DataLoader, Dataset
 from torchvision import transforms, utils
 from torch.distributed.fsdp import FullyShardedDataParallel
 from torch.distributed.fsdp.fully_sharded_data_parallel import CPUOffload
-import AdaFast
+import AdaBelief
 import cv2
 import model
 
@@ -61,7 +61,7 @@ miniBatchSize = 1
 learningRate = 1e-6 # 1e-6 # モデルのパラメーター数が多いほど、またデータ数が多いほど、小さな学習率にする。
 
 # Weight Decay
-weightDecay = 1e-16 # 1e-16
+weightDecay = 1e-8 # 1e-8
 
 # Training
 nEpoch = 800
@@ -410,7 +410,7 @@ def train():
     modelOfGenerator = FullyShardedDataParallel(modelOfGenerator, cpu_offload=CPUOffload(offload_params=True))
 
     # オプティマイザーを作成する。
-    optimizerOfGenerator = AdaFast.AdaFast(modelOfGenerator.parameters(), lr=learningRate, betas=(0.9, 0.999), weight_decay=weightDecay)
+    optimizerOfGenerator = AdaBelief.AdaBelief(modelOfGenerator.parameters(), lr=learningRate, betas=(0.9, 0.999), weight_decay=weightDecay)
 
     # 損失関数のインスタンスを作成する。
     generatorLossFunction = GeneratorLossFunction() # torch.nn.Moduleを継承している。
