@@ -2,7 +2,7 @@ import math
 import torch
 from torch.optim.optimizer import Optimizer
 
-r"""
+"""
 This script is modified from AdaBelief optimizer script, which is copyrighted by Juntang Zhuang(https://github.com/juntang-zhuang/Adabelief-Optimizer/tree/update_0.2.0)
 """
 
