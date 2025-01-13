@@ -57,11 +57,9 @@ validationHRImagePath = homePath + '/SRNet-DR/HRImage-Validation/'
 
 # Train Set Location
 trainingHRImagePath = homePath + '/SRNet-DR/HRImage-Training/'
-#trainingHRImagePath = homePath + '/SRNet-DR/HRImage-Validation/'
 
 # Super-Resolution Set Location
 lRImagePath = homePath + '/SRNet-DR/LRImage-SR/'
-#lRImagePath = homePath + '/SRNet-DR/temp/'
 
 # Save File Format
 saveFileFormat = '.png'
