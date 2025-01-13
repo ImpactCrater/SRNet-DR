@@ -20,22 +20,22 @@
 
 We run this script under [PyTorch](https://pytorch.org/) 2.1.1 or later.
 
-1. Install PyTorch.
+1. Setup.
 
 1. Follow the instructions below to install other requirements.
 ```bash
 cd ~/
 pip install --upgrade pip
 git clone https://github.com/ImpactCrater/SRNet-DR
+cd ~/SRNet-DR/
+python3.12 -m venv venv
+source venv/bin/activate
+pip install numpy
+pip install opencv-python
+pip install PyQt5
+sudo apt install python3.12-tk
 pip install easydict
-wget https://github.com/webmproject/libwebp/archive/v1.0.2.zip
-unzip v1.0.2.zip
-cd ./libwebp-1.0.2
-./autogen.sh
-./configure
-make
-sudo make install
-pip install pillow
+deactivate
 ```
 
 ### My Results
@@ -68,7 +68,10 @@ Original image is from iStock.
 #### Start training.
 
 ```bash
+cd ~/SRNet-DR/
+source venv/bin/activate
 python3 main.py
+deactivate
 ```
 #### Start super-resolution.
  - After training, if you want to SR your images, You need to put images in the specified folder.
@@ -76,7 +79,10 @@ python3 main.py
   
 
 ```bash
+cd ~/SRNet-DR/
+source venv/bin/activate
 python main.py --mode=sr 
+deactivate
 ```
 
 ### License
