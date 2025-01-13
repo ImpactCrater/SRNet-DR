@@ -8,12 +8,12 @@
 - **Image data augmentation with random size cropping at random position, random resizing and random hue rotation.**
 - **Auto-contrast and unsharp mask filter is applied to the training images.**
 - **Added RGB noise removal capability by learning Gaussian noise at random strength.**
-- **Added compression noise removal capability by learning WebP image compression noise at random strength.**
+- **Added compression noise removal capability by learning WebP and JPEG image compression noise at random strength.**
 - **You can read/write PNG/WebP/BMP/JPEG/TIFF files.**
 
 ### Required Memory
-- **For training with CPU: 48GB+ RAM**
-- **For training with GPU with CPU Offloading: 12GB+ VRAM**
+- **For training with CPU: 16GB+ RAM**
+- **For training with GPU with CPU Offloading: 8GB+ VRAM**
 - **For enlargement: 8GB+ RAM**
 
 ## Preparation
