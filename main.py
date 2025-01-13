@@ -15,15 +15,30 @@ from torch.utils.data import DataLoader, Dataset
 from torchvision import transforms, utils
 from torch.distributed.fsdp import FullyShardedDataParallel
 from torch.distributed.fsdp.fully_sharded_data_parallel import CPUOffload
-import AdaBelief
+import AdaBC
 import cv2
 import model
 
 # from torchsummary import summary
 
+## Setup
+#mkdir ~/SRNet-DR
+#cd ~/SRNet-DR/
+#python3.12 -m venv venv
+#source venv/bin/activate
+#pip install numpy
+#pip install opencv-python
+#pip install PyQt5
+#sudo apt install python3.12-tk
+#pip install easydict
 
+
+## Execution
+#cd ~/SRNet-DR/
+#source venv/bin/activate
 #python3 ~/SRNet-DR/main.py
 #python3 ~/SRNet-DR/main.py --mode=sr
+#deactivate
 
 
 ## Paths
@@ -58,13 +73,23 @@ saveFileFormat = '.png'
 miniBatchSize = 1
 
 # Learning Rate
-learningRate = 1e-6 # 1e-6 # モデルのパラメーター数が多いほど、またデータ数が多いほど、小さな学習率にする。
+learningRate = 1e-5 # 1e-5
+# モデルのパラメーター数が多いほど、またデータ数が多いほど、小さな学習率にする。
+
+# Beta1, Beta2
+betas=(0.9, 0.999)
 
 # Weight Decay
-weightDecay = 1e-8 # 1e-8
+weightDecay = 1e-12 # 1e-16
+
+# Epsilon
+epsilon = 1e-16 # 1e-16
+# 0除算対策。
+# 1e-8などと大きいと学習が進行しない事を確認済み。
+
 
 # Training
-nEpoch = 800
+nEpoch = 80000
 
 # Number of Iterations of the Step to Save
 nIterationOfStepToSave = 400 # 10 or 400 or 1000
@@ -136,6 +161,7 @@ class ImageFromDirectory(Dataset):
         return imagePathsList
 
     def _preprocess(self, image):
+
         # Data augmentation
              # x = random.randint(a, b); a <= x <= b (x; int)
              # x = random.uniform(a, b); a <= x <= b (x; float)
@@ -156,14 +182,17 @@ class ImageFromDirectory(Dataset):
         if random.randint(0, 1) == 1:
             imageHR = ImageOps.mirror(imageHR)
 
+
         # Deterioration
         imageLR = imageHR.copy()
+
         randomSize = math.floor(random.uniform(0.0, 1.0) * random.uniform(0.0, 1.0) * random.uniform(0.0, 1.0) * random.uniform(0.0, 1.0) * (388 - 97) + 97)
         imageLR = imageLR.resize((randomSize, randomSize), Image.Resampling.BICUBIC)
-        randomRadius = random.uniform(0.0, 1.0) # (0.0, 1.0)
+
+        randomRadius = random.uniform(0.0, 1.0) * random.uniform(0.0, 1.0) # (0.0, 1.0)
         imageLR = imageLR.filter(ImageFilter.GaussianBlur(randomRadius))
 
-        randomStrength = random.uniform(0.0, 0.075) # (0.0, 0.075)
+        randomStrength = random.uniform(0.0, 1.0) * random.uniform(0.0, 1.0) * 0.075 # (0.0, 0.075)
         width, height = imageLR.size
         r, g, b = imageLR.split()
         noiseImage = Image.effect_noise((width, height), 255) # Generate Gaussian noise
@@ -174,10 +203,16 @@ class ImageFromDirectory(Dataset):
         b = Image.blend(b, noiseImage, randomStrength)
         imageLR = Image.merge("RGB", (r, g, b))
 
-        randomQuality = random.randint(5, 100) # (5, 100)
+        randomQuality = int((1. - random.uniform(0.0, 1.0) * random.uniform(0.0, 1.0)) * 75 + 20) # (20, 95)
+        imageFile = BytesIO()
+        imageLR.save(imageFile, 'jpeg', quality=randomQuality)
+        imageLR = Image.open(imageFile)
+
+        randomQuality = int((1. - random.uniform(0.0, 1.0) * random.uniform(0.0, 1.0)) * 95 + 5) # (5, 100)
         imageFile = BytesIO()
         imageLR.save(imageFile, 'webp', quality=randomQuality)
         imageLR = Image.open(imageFile)
+
         imageLR = imageLR.resize((388, 388), Image.Resampling.BICUBIC)
 
         left = random.randint(0, 3)
@@ -313,23 +348,14 @@ class GeneratorLossFunction(torch.nn.Module):
         featureSsimMap = self._calculateFeatureSsim(image1, image2)
         featureSsimLoss = ((torch.sqrt(1 + torch.pow((1 - featureSsimMap) * 1024, 2)) - 1) / 1024).mean()
 
-        image1Small = torch.nn.functional.interpolate(image1, size=None, scale_factor=0.5, mode='bilinear')
-        image2Small = torch.nn.functional.interpolate(image2, size=None, scale_factor=0.5, mode='bilinear')
-
-        ssimMapSmall = self._calculateSsim(image1Small, image2Small)
-        ssimLossSmall = ((torch.sqrt(1 + torch.pow((1 - ssimMapSmall) * 1024, 2)) - 1) / 1024).mean()
-
-        featureSsimMapSmall = self._calculateFeatureSsim(image1Small, image2Small)
-        featureSsimLossSmall = ((torch.sqrt(1 + torch.pow((1 - featureSsimMapSmall) * 1024, 2)) - 1) / 1024).mean()
-
-        return ssimLoss + ssimLossSmall, featureSsimLoss + featureSsimLossSmall
+        return ssimLoss, featureSsimLoss
 
 
 
 
 
 
-def displayImage(miniBatchGenerated, miniBatchHR):
+def displayImage(miniBatchGenerated, miniBatchHR, miniBatchLR, windowName):
 
     with torch.no_grad(): # 以下のスコープ内では勾配計算をさせない。
         # GPUが利用可能ならGPUを利用する。
@@ -341,12 +367,13 @@ def displayImage(miniBatchGenerated, miniBatchHR):
 
         height = miniBatchHR.size()[2]
         width = miniBatchHR.size()[3]
-        inputImage = torch.zeros((1, 3, height, width * 2)).to(device, non_blocking=True) # NCHW RGB [0., 1.]
+        inputImage = torch.zeros((1, 3, height, width * 3)).to(device, non_blocking=True) # NCHW RGB [0., 1.]
         inputImage[0, :, :, :width] = miniBatchHR[0, :, :, :]
-        inputImage[0, :, :, width:] = miniBatchGenerated[0, :, :, :]
+        inputImage[0, :, :, width:width * 2] = miniBatchLR[0, :, :, :]
+        inputImage[0, :, :, width * 2:] = miniBatchGenerated[0, :, :, :]
         inputImage = inputImage.to("cpu")
 
-        image = numpy.zeros((3, height, width * 2)) # CHW BGR [0., 1.]
+        image = numpy.zeros((3, height, width * 3)) # CHW BGR [0., 1.]
         image[0, :, :] = inputImage[0, 2, :, :] # Blue
         image[1, :, :] = inputImage[0, 1, :, :] # Green
         image[2, :, :] = inputImage[0, 0, :, :] # Red
@@ -397,8 +424,14 @@ def train():
 
     # 生成モデルのインスタンスを作成する。
     modelOfGenerator = model.ModelOfGenerator()
+
     if os.path.isfile(checkpointPath + "modelOfGenerator.pth"):
-        modelOfGenerator.load_state_dict(torch.load(checkpointPath + "modelOfGenerator.pth", map_location=torch.device(device)))
+        checkpoint = torch.load(checkpointPath + "modelOfGenerator.pth", map_location=torch.device(device))
+        restoredCheckpoint = {}
+        for k, v in checkpoint.items():
+            restoredCheckpoint[k.replace('_orig_mod.', '')] = v
+        modelOfGenerator.load_state_dict(restoredCheckpoint)
+        #modelOfGenerator.load_state_dict(torch.load(checkpointPath + "modelOfGenerator.pth", map_location=torch.device(device)))
     else:
         print("modelOfGenerator.pth will be created.")
 
@@ -407,10 +440,10 @@ def train():
     modelOfGenerator.to(device, non_blocking=True) # モデルのデータをdeviceに置く。
 
     # モデルを細切れにして順伝播でCPU Offloadingするように設定する。
-    modelOfGenerator = FullyShardedDataParallel(modelOfGenerator, cpu_offload=CPUOffload(offload_params=True))
+    modelOfGenerator = FullyShardedDataParallel(modelOfGenerator, cpu_offload=CPUOffload(offload_params=True), use_orig_params=True)
 
     # オプティマイザーを作成する。
-    optimizerOfGenerator = AdaBelief.AdaBelief(modelOfGenerator.parameters(), lr=learningRate, betas=(0.9, 0.999), weight_decay=weightDecay)
+    optimizerOfGenerator = AdaBC.AdaBC(modelOfGenerator.parameters(), lr=learningRate, betas=betas, weight_decay=weightDecay, eps=epsilon)
 
     # 損失関数のインスタンスを作成する。
     generatorLossFunction = GeneratorLossFunction() # torch.nn.Moduleを継承している。
@@ -435,11 +468,14 @@ def train():
 
     # 学習用画像の DataLoader を作成する。
     dataloaderTraining = DataLoader(datasetTrain, batch_size=miniBatchSize, pin_memory=True, shuffle=True, num_workers=0, drop_last=True)
+
+    windowName = 'Result'
+    cv2.namedWindow(windowName, cv2.WINDOW_AUTOSIZE | cv2.WINDOW_KEEPRATIO | cv2.WINDOW_GUI_NORMAL)
     count = 0
     for epoch in range(0, nEpoch):
         step = 0
 
-        datasetTrain.updateDataList() # データセットのリストを更新する。
+        #datasetTrain.updateDataList() # データセットのリストを更新する。
 
         nImagesTrain = len(datasetTrain)
         nStep = math.floor(nImagesTrain / miniBatchSize)
@@ -454,14 +490,16 @@ def train():
             # Train Generator
             modelOfGenerator.train() # training モードに設定する。
             miniBatchGenerated = modelOfGenerator(miniBatchLR) # 画像を生成モデルに入力して生成画像を得る。
-            del miniBatchLR
             ssimLoss, featureSsimLoss = generatorLossFunction(miniBatchGenerated, miniBatchHR) # 損失を計算させる。
-            displayImage(miniBatchGenerated, miniBatchHR)
+            displayImage(miniBatchGenerated, miniBatchHR, miniBatchLR, windowName)
+            del miniBatchLR
+            del miniBatchHR
             del miniBatchGenerated
             generatorLoss = ssimLoss + featureSsimLoss
             optimizerOfGenerator.zero_grad(set_to_none=True) # 勾配を削除により初期化する。
             generatorLoss.backward() # 誤差逆伝播により勾配を計算させる。
             optimizerOfGenerator.step() # パラメーターを更新させる。
+            optimizerOfGenerator.zero_grad(set_to_none=True) # 勾配を削除により初期化する。
             ssimLossValue = float(ssimLoss)
             featureSsimLossValue = float(featureSsimLoss)
             del ssimLoss
@@ -472,11 +510,6 @@ def train():
             print("Epoch: {:2d} Count: {:4d} Time: {:4.2f} ssimLoss: {:.8f} featureSsimLoss: {:.8f}".format(
                   epoch, count, nowTime - previousTime, ssimLossValue, featureSsimLossValue)) # 損失値を表示させる。
             previousTime = nowTime
-
-            count += 1
-            step += 1
-
-
 
             # Validationを実行する。
             if count % nIterationOfStepToSave == 0 and count != 0:
@@ -489,6 +522,9 @@ def train():
                         utils.save_image(miniBatchGenerated, saveDirectoryGenerated + "/" + str(i) + "-" + str(epoch) + "-" + str(step) + ".png", nrow=16)
                         torch.save(modelOfGenerator.state_dict(), checkpointPath + "modelOfGenerator.pth") # モデル データを保存する。
                         i += 1
+
+            step += 1
+            count += 1
 
 
 
